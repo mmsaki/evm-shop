@@ -310,4 +310,73 @@ contract CounterTest is Setup {
         assertTrue(success);
         assertEq(address(shop).balance, 1 ether);
     }
+
+    // ============ Constructor Validation Tests ============
+
+    function test_constructor_rejects_zero_price() public {
+        vm.startPrank(owner);
+        vm.expectRevert(Shop.InvalidConstructorParameters.selector);
+        new Shop(0, TAX, TAX_BASE, REFUND_RATE, REFUND_BASE, REFUND_POLICY);
+        vm.stopPrank();
+    }
+
+    function test_constructor_rejects_zero_tax_base() public {
+        vm.startPrank(owner);
+        vm.expectRevert(Shop.InvalidConstructorParameters.selector);
+        new Shop(PRICE, TAX, 0, REFUND_RATE, REFUND_BASE, REFUND_POLICY);
+        vm.stopPrank();
+    }
+
+    function test_constructor_rejects_tax_greater_than_base() public {
+        vm.startPrank(owner);
+        vm.expectRevert(Shop.InvalidConstructorParameters.selector);
+        new Shop(PRICE, 1001, 1000, REFUND_RATE, REFUND_BASE, REFUND_POLICY);
+        vm.stopPrank();
+    }
+
+    function test_constructor_rejects_zero_refund_base() public {
+        vm.startPrank(owner);
+        vm.expectRevert(Shop.InvalidConstructorParameters.selector);
+        new Shop(PRICE, TAX, TAX_BASE, REFUND_RATE, 0, REFUND_POLICY);
+        vm.stopPrank();
+    }
+
+    function test_constructor_rejects_refund_rate_greater_than_base() public {
+        vm.startPrank(owner);
+        vm.expectRevert(Shop.InvalidConstructorParameters.selector);
+        new Shop(PRICE, TAX, TAX_BASE, 1001, 1000, REFUND_POLICY);
+        vm.stopPrank();
+    }
+
+    function test_constructor_rejects_zero_refund_policy() public {
+        vm.startPrank(owner);
+        vm.expectRevert(Shop.InvalidConstructorParameters.selector);
+        new Shop(PRICE, TAX, TAX_BASE, REFUND_RATE, REFUND_BASE, 0);
+        vm.stopPrank();
+    }
+
+    function test_constructor_accepts_tax_equal_to_base() public {
+        vm.startPrank(owner);
+        // 100% tax is technically valid (though unusual)
+        Shop testShop = new Shop(PRICE, 1000, 1000, REFUND_RATE, REFUND_BASE, REFUND_POLICY);
+        assertEq(address(testShop.owner()), owner);
+        vm.stopPrank();
+    }
+
+    function test_constructor_accepts_refund_rate_equal_to_base() public {
+        vm.startPrank(owner);
+        // 100% refund is valid
+        Shop testShop = new Shop(PRICE, TAX, TAX_BASE, 1000, 1000, REFUND_POLICY);
+        assertEq(address(testShop.owner()), owner);
+        vm.stopPrank();
+    }
+
+    function test_constructor_prevents_misconfiguration() public {
+        vm.startPrank(owner);
+        // This would have been the bug: swapping REFUND_RATE and REFUND_BASE
+        // would create 200% refund (1000/500 = 2.0 = 200%)
+        vm.expectRevert(Shop.InvalidConstructorParameters.selector);
+        new Shop(PRICE, TAX, TAX_BASE, 1000, 500, REFUND_POLICY); // Swapped!
+        vm.stopPrank();
+    }
 }

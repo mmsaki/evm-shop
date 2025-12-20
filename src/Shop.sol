@@ -64,8 +64,30 @@ contract Shop {
     error UnauthorizedAccess();
     error MissingTax();
     error WaitUntilRefundPeriodPassed();
+    error InvalidConstructorParameters();
 
     constructor(uint256 price, uint16 tax, uint16 taxBase, uint16 refundRate, uint16 refundBase, uint256 refundPolicy) {
+        // Validate price is non-zero
+        if (price == 0) revert InvalidConstructorParameters();
+
+        // Validate tax base to prevent division by zero
+        if (taxBase == 0) revert InvalidConstructorParameters();
+
+        // Validate tax doesn't exceed 100% (tax should be <= taxBase for sanity)
+        if (tax > taxBase) revert InvalidConstructorParameters();
+
+        // Validate refund base to prevent division by zero
+        if (refundBase == 0) revert InvalidConstructorParameters();
+
+        // Validate refund rate doesn't exceed 100% (refundRate should be <= refundBase)
+        if (refundRate > refundBase) revert InvalidConstructorParameters();
+
+        // Validate refund policy is non-zero (must have some refund window)
+        if (refundPolicy == 0) revert InvalidConstructorParameters();
+
+        // Validate owner is not zero address (though msg.sender should never be zero)
+        if (msg.sender == address(0)) revert InvalidConstructorParameters();
+
         PRICE = price;
         TAX = tax;
         TAX_BASE = taxBase;
