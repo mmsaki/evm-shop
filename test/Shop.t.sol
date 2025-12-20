@@ -7,7 +7,10 @@ import {Shop, Transaction} from "../src/Shop.sol";
 contract Setup is Test {
     Shop public shop;
     uint256 immutable PRICE = 1e16;
-    uint256 immutable TAX = 1e13;
+    uint16 immutable TAX = 100; // 10% in basis points
+    uint16 immutable TAX_BASE = 1000;
+    uint256 immutable TAX_AMOUNT = PRICE * TAX / TAX_BASE;
+    uint256 immutable TOTAL = PRICE + TAX_AMOUNT;
     uint16 immutable REFUND_RATE = 500;
     uint16 immutable REFUND_BASE = 1000;
     uint256 immutable REFUND_POLICY = 24 hours;
@@ -25,7 +28,7 @@ contract Setup is Test {
     }
 
     function deploy() internal useCaller(owner) {
-        shop = new Shop(PRICE, TAX, REFUND_RATE, REFUND_BASE, REFUND_POLICY);
+        shop = new Shop(PRICE, TAX, TAX_BASE, REFUND_RATE, REFUND_BASE, REFUND_POLICY);
     }
 
     function topUp(address user, uint256 amount) internal {
@@ -40,7 +43,7 @@ contract Setup is Test {
 
     modifier makeOrder(address user) {
         vm.startPrank(user);
-        shop.buy{value: PRICE + TAX}();
+        shop.buy{value: TOTAL}();
         _;
         vm.stopPrank();
     }
@@ -68,15 +71,15 @@ contract CounterTest is Setup {
 
     function test_buy_correct_amount() public useCaller(user1) {
         assertEq(shop.nonces(user1), 0);
-        shop.buy{value: PRICE + TAX}();
+        shop.buy{value: TOTAL}();
         assertEq(shop.nonces(user1), 1);
-        assertEq(address(shop).balance, PRICE + TAX);
+        assertEq(address(shop).balance, TOTAL);
     }
 
     function test_refund() public makeOrder(user1) {
         bytes32 orderId = keccak256(abi.encode(user1, shop.nonces(user1) - 1));
         shop.refund(orderId);
-        assertEq(address(shop).balance, TAX + PRICE - PRICE.getRefund(REFUND_RATE, REFUND_BASE));
+        assertEq(address(shop).balance, TOTAL - PRICE.getRefund(REFUND_RATE, REFUND_BASE));
         assertEq(shop.nonces(user1), 1);
         assertEq(shop.refunds(orderId), true);
     }
@@ -90,7 +93,7 @@ contract CounterTest is Setup {
         shop.closeShop();
         vm.startPrank(user1);
         vm.expectRevert(Shop.ShopIsClosed.selector);
-        shop.buy{value: PRICE + TAX}();
+        shop.buy{value: TOTAL}();
         vm.stopPrank();
     }
 
@@ -102,11 +105,11 @@ contract CounterTest is Setup {
     }
 
     function test_multiple_buys() public useCaller(user1) {
-        shop.buy{value: PRICE + TAX}();
+        shop.buy{value: TOTAL}();
         assertEq(shop.nonces(user1), 1);
-        shop.buy{value: PRICE + TAX}();
+        shop.buy{value: TOTAL}();
         assertEq(shop.nonces(user1), 2);
-        assertEq(address(shop).balance, 2 * (PRICE + TAX));
+        assertEq(address(shop).balance, 2 * TOTAL);
     }
 
     function test_withdrawal_before_policy() public makeOrder(user1) {
@@ -157,7 +160,7 @@ contract CounterTest is Setup {
 
         vm.startPrank(user1);
         vm.expectRevert(Shop.ShopIsClosed.selector);
-        shop.buy{value: PRICE + TAX}();
+        shop.buy{value: TOTAL}();
         vm.stopPrank();
 
         vm.startPrank(owner);
@@ -165,14 +168,14 @@ contract CounterTest is Setup {
         vm.stopPrank();
 
         vm.startPrank(user1);
-        shop.buy{value: PRICE + TAX}(); // Should work now
+        shop.buy{value: TOTAL}(); // Should work now
         vm.stopPrank();
     }
 
     function test_buy_event() public useCaller(user1) {
         vm.expectEmit(true, false, false, false);
-        emit Shop.BuyOrder(bytes32(0), PRICE + TAX);
-        shop.buy{value: PRICE + TAX}();
+        emit Shop.BuyOrder(bytes32(0), TOTAL);
+        shop.buy{value: TOTAL}();
     }
 
     function test_refund_event() public makeOrder(user1) {

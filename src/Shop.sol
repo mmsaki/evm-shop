@@ -9,8 +9,8 @@ library Transaction {
         uint256 date;
     }
 
-    function addTax(uint256 amount, uint256 tax) internal pure returns (uint256) {
-        return amount + tax;
+    function addTax(uint256 amount, uint16 tax, uint16 base) internal pure returns (uint256) {
+        return amount + (amount * tax / base);
     }
 
     function getRefund(uint256 amount, uint16 rate, uint16 base) internal pure returns (uint256) {
@@ -22,7 +22,8 @@ contract Shop {
     using Transaction for uint256;
 
     uint256 immutable PRICE;
-    uint256 immutable TAX;
+    uint16 immutable TAX;
+    uint16 immutable TAX_BASE;
     uint16 immutable REFUND_RATE;
     uint16 immutable REFUND_BASE;
     uint256 immutable REFUND_POLICY;
@@ -45,9 +46,10 @@ contract Shop {
     error MissingTax();
     error WaitUntilRefundPeriodPassed();
 
-    constructor(uint256 price, uint256 tax, uint16 refundRate, uint16 refundBase, uint256 refundPolicy) {
+    constructor(uint256 price, uint16 tax, uint16 taxBase, uint16 refundRate, uint16 refundBase, uint256 refundPolicy) {
         PRICE = price;
         TAX = tax;
+        TAX_BASE = taxBase;
         REFUND_RATE = refundRate;
         REFUND_BASE = refundBase;
         REFUND_POLICY = refundPolicy;
@@ -64,19 +66,21 @@ contract Shop {
     }
 
     function buy() public payable {
+        uint256 taxAmount = PRICE * TAX / TAX_BASE;
+        uint256 total = PRICE + taxAmount;
         if (msg.value == PRICE) revert MissingTax();
         if (shopClosed) revert ShopIsClosed();
         uint256 nonce = nonces[msg.sender];
         bytes32 orderId = keccak256(abi.encode(msg.sender, nonce));
         nonces[msg.sender]++;
         orders[orderId] = Transaction.Order(msg.sender, nonce, PRICE, block.timestamp);
-        require(msg.value >= PRICE + TAX);
+        require(msg.value >= total);
         lastBuy = block.timestamp;
         emit BuyOrder(orderId, msg.value);
     }
 
     function addTax(bytes32 orderId) internal view returns (uint256 total) {
-        total = orders[orderId].amount.addTax(TAX);
+        total = orders[orderId].amount.addTax(TAX, TAX_BASE);
         orders[orderId];
         orders[orderId].amount;
     }
