@@ -379,4 +379,191 @@ contract CounterTest is Setup {
         new Shop(PRICE, TAX, TAX_BASE, 1000, 500, REFUND_POLICY); // Swapped!
         vm.stopPrank();
     }
+
+    // ============ Ownership Transfer Tests ============
+
+    function test_transfer_ownership_success() public {
+        address newOwner = makeAddr("newOwner");
+
+        // Step 1: Current owner initiates transfer
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, false, false);
+        emit Shop.OwnershipTransferInitiated(owner, newOwner);
+        shop.transferOwnership(payable(newOwner));
+        assertEq(shop.pendingOwner(), newOwner);
+        assertEq(shop.owner(), owner); // Owner hasn't changed yet
+        vm.stopPrank();
+
+        // Step 2: New owner accepts ownership
+        vm.startPrank(newOwner);
+        vm.expectEmit(true, true, false, false);
+        emit Shop.OwnershipTransferred(owner, newOwner);
+        shop.acceptOwnership();
+        assertEq(shop.owner(), newOwner);
+        assertEq(shop.pendingOwner(), address(0)); // Pending owner cleared
+        vm.stopPrank();
+    }
+
+    function test_transfer_ownership_unauthorized_initiate() public {
+        address newOwner = makeAddr("newOwner");
+
+        vm.startPrank(user1);
+        vm.expectRevert(Shop.UnauthorizedAccess.selector);
+        shop.transferOwnership(payable(newOwner));
+        vm.stopPrank();
+    }
+
+    function test_transfer_ownership_unauthorized_accept() public {
+        address newOwner = makeAddr("newOwner");
+
+        // Owner initiates transfer
+        vm.prank(owner);
+        shop.transferOwnership(payable(newOwner));
+
+        // Random user tries to accept
+        vm.startPrank(user1);
+        vm.expectRevert(Shop.UnauthorizedAccess.selector);
+        shop.acceptOwnership();
+        vm.stopPrank();
+    }
+
+    function test_transfer_ownership_to_zero_address() public {
+        vm.startPrank(owner);
+        vm.expectRevert(Shop.InvalidPendingOwner.selector);
+        shop.transferOwnership(payable(address(0)));
+        vm.stopPrank();
+    }
+
+    function test_transfer_ownership_to_same_owner() public {
+        vm.startPrank(owner);
+        vm.expectRevert(Shop.InvalidPendingOwner.selector);
+        shop.transferOwnership(payable(owner));
+        vm.stopPrank();
+    }
+
+    function test_cancel_ownership_transfer() public {
+        address newOwner = makeAddr("newOwner");
+
+        // Initiate transfer
+        vm.startPrank(owner);
+        shop.transferOwnership(payable(newOwner));
+        assertEq(shop.pendingOwner(), newOwner);
+
+        // Cancel transfer
+        shop.cancelOwnershipTransfer();
+        assertEq(shop.pendingOwner(), address(0));
+        assertEq(shop.owner(), owner);
+        vm.stopPrank();
+    }
+
+    function test_cancel_ownership_transfer_when_none_pending() public {
+        vm.startPrank(owner);
+        vm.expectRevert(Shop.NoPendingOwnershipTransfer.selector);
+        shop.cancelOwnershipTransfer();
+        vm.stopPrank();
+    }
+
+    function test_cancel_ownership_transfer_unauthorized() public {
+        address newOwner = makeAddr("newOwner");
+
+        vm.prank(owner);
+        shop.transferOwnership(payable(newOwner));
+
+        vm.startPrank(user1);
+        vm.expectRevert(Shop.UnauthorizedAccess.selector);
+        shop.cancelOwnershipTransfer();
+        vm.stopPrank();
+    }
+
+    function test_accept_ownership_when_none_pending() public {
+        vm.startPrank(user1);
+        vm.expectRevert(Shop.UnauthorizedAccess.selector);
+        shop.acceptOwnership();
+        vm.stopPrank();
+    }
+
+    function test_new_owner_can_use_owner_functions() public {
+        address newOwner = makeAddr("newOwner");
+        topUp(newOwner, 10 ether);
+
+        // Transfer ownership
+        vm.prank(owner);
+        shop.transferOwnership(payable(newOwner));
+
+        vm.prank(newOwner);
+        shop.acceptOwnership();
+
+        // New owner can now use owner functions
+        vm.startPrank(newOwner);
+        shop.closeShop();
+        assertTrue(shop.shopClosed());
+
+        shop.openShop();
+        assertFalse(shop.shopClosed());
+        vm.stopPrank();
+
+        // Old owner cannot use owner functions
+        vm.startPrank(owner);
+        vm.expectRevert(Shop.UnauthorizedAccess.selector);
+        shop.closeShop();
+        vm.stopPrank();
+    }
+
+    function test_overwrite_pending_owner() public {
+        address newOwner1 = makeAddr("newOwner1");
+        address newOwner2 = makeAddr("newOwner2");
+
+        vm.startPrank(owner);
+
+        // Set first pending owner
+        shop.transferOwnership(payable(newOwner1));
+        assertEq(shop.pendingOwner(), newOwner1);
+
+        // Overwrite with second pending owner
+        shop.transferOwnership(payable(newOwner2));
+        assertEq(shop.pendingOwner(), newOwner2);
+
+        vm.stopPrank();
+
+        // First pending owner cannot accept
+        vm.startPrank(newOwner1);
+        vm.expectRevert(Shop.UnauthorizedAccess.selector);
+        shop.acceptOwnership();
+        vm.stopPrank();
+
+        // Second pending owner can accept
+        vm.prank(newOwner2);
+        shop.acceptOwnership();
+        assertEq(shop.owner(), newOwner2);
+    }
+
+    function test_new_owner_can_withdraw() public {
+        // Make an order first
+        vm.startPrank(user1);
+        shop.buy{value: TOTAL}();
+        vm.stopPrank();
+
+        address newOwner = makeAddr("newOwner");
+        topUp(newOwner, 10 ether);
+
+        // Transfer ownership
+        vm.prank(owner);
+        shop.transferOwnership(payable(newOwner));
+
+        vm.prank(newOwner);
+        shop.acceptOwnership();
+
+        // Warp past refund policy
+        vm.warp(block.timestamp + REFUND_POLICY + 1);
+
+        // New owner can withdraw
+        uint256 shopBalance = address(shop).balance;
+        uint256 newOwnerBalanceBefore = newOwner.balance;
+
+        vm.prank(newOwner);
+        shop.withdraw();
+
+        assertEq(newOwner.balance, newOwnerBalanceBefore + shopBalance);
+        assertEq(address(shop).balance, 0);
+    }
 }

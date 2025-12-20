@@ -42,18 +42,21 @@ contract Shop {
     uint16 immutable REFUND_BASE;
     uint256 immutable REFUND_POLICY;
     address payable public owner;
+    address payable public pendingOwner;
 
     mapping(bytes32 => Transaction.Order) public orders;
     mapping(address => uint256) public nonces;
     mapping(bytes32 => bool) public refunds;
     uint256 lastBuy;
-    bool partialWithdrawal;
-    bool shopClosed;
+    bool public partialWithdrawal;
+    bool public shopClosed;
 
     event BuyOrder(bytes32 orderId, uint256 amount);
     event RefundProcessed(bytes32 orderId, uint256 amount);
     event ShopOpen(uint256 timestamp);
     event ShopClosed(uint256 timestamp);
+    event OwnershipTransferInitiated(address indexed previousOwner, address indexed newOwner);
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     error ExcessAmount();
     error InsuffientAmount();
@@ -65,27 +68,18 @@ contract Shop {
     error MissingTax();
     error WaitUntilRefundPeriodPassed();
     error InvalidConstructorParameters();
+    error InvalidPendingOwner();
+    error NoPendingOwnershipTransfer();
+    error TransferFailed();
 
     constructor(uint256 price, uint16 tax, uint16 taxBase, uint16 refundRate, uint16 refundBase, uint256 refundPolicy) {
-        // Validate price is non-zero
         if (price == 0) revert InvalidConstructorParameters();
-
-        // Validate tax base to prevent division by zero
         if (taxBase == 0) revert InvalidConstructorParameters();
-
-        // Validate tax doesn't exceed 100% (tax should be <= taxBase for sanity)
         if (tax > taxBase) revert InvalidConstructorParameters();
-
-        // Validate refund base to prevent division by zero
         if (refundBase == 0) revert InvalidConstructorParameters();
-
-        // Validate refund rate doesn't exceed 100% (refundRate should be <= refundBase)
         if (refundRate > refundBase) revert InvalidConstructorParameters();
-
-        // Validate refund policy is non-zero (must have some refund window)
         if (refundPolicy == 0) revert InvalidConstructorParameters();
 
-        // Validate owner is not zero address (though msg.sender should never be zero)
         if (msg.sender == address(0)) revert InvalidConstructorParameters();
 
         PRICE = price;
@@ -134,8 +128,8 @@ contract Shop {
         uint256 refundAmount = PRICE.getRefund(REFUND_RATE, REFUND_BASE);
 
         // Interactions - external call last
-        (bool success, ) = payable(msg.sender).call{value: refundAmount}("");
-        require(success, "Refund transfer failed");
+        (bool success,) = payable(msg.sender).call{value: refundAmount}("");
+        if (!success) revert TransferFailed();
         emit RefundProcessed(orderId, refundAmount);
     }
 
@@ -144,15 +138,15 @@ contract Shop {
             // Full withdrawal allowed - refund period has passed
             uint256 amount = address(this).balance;
             partialWithdrawal = false;
-            (bool success, ) = owner.call{value: amount}("");
-            require(success, "Withdrawal failed");
+            (bool success,) = owner.call{value: amount}("");
+            if (!success) revert TransferFailed();
         } else {
             // Partial withdrawal only - refund period still active
             if (partialWithdrawal) revert WaitUntilRefundPeriodPassed();
             partialWithdrawal = true;
             uint256 amount = address(this).balance * REFUND_RATE / REFUND_BASE;
-            (bool success, ) = owner.call{value: amount}("");
-            require(success, "Withdrawal failed");
+            (bool success,) = owner.call{value: amount}("");
+            if (!success) revert TransferFailed();
         }
     }
 
@@ -166,6 +160,30 @@ contract Shop {
     function closeShop() public onlyOwner {
         shopClosed = true;
         emit ShopClosed(block.timestamp);
+    }
+
+    function transferOwnership(address payable newOwner) public onlyOwner {
+        if (newOwner == address(0)) revert InvalidPendingOwner();
+        if (newOwner == owner) revert InvalidPendingOwner();
+        pendingOwner = newOwner;
+        emit OwnershipTransferInitiated(owner, newOwner);
+    }
+
+    function acceptOwnership() public {
+        if (msg.sender != pendingOwner) revert UnauthorizedAccess();
+        if (pendingOwner == address(0)) revert NoPendingOwnershipTransfer();
+
+        address payable previousOwner = owner;
+        owner = pendingOwner;
+        pendingOwner = payable(address(0));
+
+        emit OwnershipTransferred(previousOwner, owner);
+    }
+
+    function cancelOwnershipTransfer() public onlyOwner {
+        if (pendingOwner == address(0)) revert NoPendingOwnershipTransfer();
+        pendingOwner = payable(address(0));
+        emit OwnershipTransferInitiated(owner, address(0));
     }
 
     receive() external payable {}
