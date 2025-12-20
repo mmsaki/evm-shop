@@ -46,8 +46,6 @@ For detailed contract documentation, see [src/README.md](src/README.md)
 
 ## 🧪 Testing
 
-**54 tests** with 100% pass rate:
-
 ```bash
 forge test -vv              # Verbose output
 forge test --gas-report     # Gas usage report
@@ -56,6 +54,7 @@ forge test --gas-report     # Gas usage report
 ## 🔧 Contract Configuration
 
 Default deployment parameters:
+
 - **Price**: 0.01 ETH
 - **Tax**: 10%
 - **Refund**: 50% within 24 hours
