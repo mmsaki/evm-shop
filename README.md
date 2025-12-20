@@ -64,7 +64,6 @@ Default deployment parameters:
 - **Price**: 0.01 ETH
 - **Tax**: 10%
 - **Refund**: 50% within 24 hours
-- **Solidity**: 0.8.30
 
 ```solidity
 new Shop(
