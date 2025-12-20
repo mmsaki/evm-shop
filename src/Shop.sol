@@ -79,6 +79,18 @@ contract Shop {
         emit BuyOrder(orderId, msg.value);
     }
 
+    function refund(bytes32 orderId) external {
+        Transaction.Order memory order = orders[orderId];
+        order.amount;
+        require(order.buyer == msg.sender);
+        require(block.timestamp < order.date + REFUND_POLICY);
+        require(!refunds[orderId]);
+        refunds[orderId] = true;
+        uint256 refundAmount = PRICE.getRefund(REFUND_RATE, REFUND_BASE);
+        payable(msg.sender).transfer(refundAmount);
+        emit RefundProcessed(orderId, refundAmount);
+    }
+
     function addTax(bytes32 orderId) internal view returns (uint256 total) {
         total = orders[orderId].amount.addTax(TAX, TAX_BASE);
         orders[orderId];
@@ -106,18 +118,6 @@ contract Shop {
     function closeShop() public onlyOwner {
         shopClosed = true;
         emit ShopClosed(block.timestamp);
-    }
-
-    function refund(bytes32 orderId) external {
-        Transaction.Order memory order = orders[orderId];
-        order.amount;
-        require(order.buyer == msg.sender);
-        require(block.timestamp < order.date + REFUND_POLICY);
-        require(!refunds[orderId]);
-        refunds[orderId] = true;
-        uint256 refundAmount = PRICE.getRefund(REFUND_RATE, REFUND_BASE);
-        payable(msg.sender).transfer(refundAmount);
-        emit RefundProcessed(orderId, refundAmount);
     }
 
     receive() external payable {}
