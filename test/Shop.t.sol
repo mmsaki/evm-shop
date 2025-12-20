@@ -306,7 +306,7 @@ contract CounterTest is Setup {
 
     function test_receive_function() public {
         // Test that contract can receive ETH directly
-        (bool success, ) = address(shop).call{value: 1 ether}("");
+        (bool success,) = address(shop).call{value: 1 ether}("");
         assertTrue(success);
         assertEq(address(shop).balance, 1 ether);
     }
