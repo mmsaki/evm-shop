@@ -1,4 +1,4 @@
-# 🛒 Smart Contract Shop
+# 🛒 EVM Shop
 
 ```
                                                  █████                        
