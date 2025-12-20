@@ -21,6 +21,7 @@ library Transaction {
         uint256 nonce;
         uint256 amount;
         uint256 date;
+        bool confirmed;
     }
 
     function addTax(
@@ -55,12 +56,15 @@ contract Shop {
     mapping(bytes32 => Transaction.Order) public orders;
     mapping(address => uint256) public nonces;
     mapping(bytes32 => bool) public refunds;
+    mapping(bytes32 => bool) public paid;
     uint256 lastBuy;
     bool public partialWithdrawal;
     bool public shopClosed;
+    uint256 public totalConfirmedAmount;
 
     event BuyOrder(bytes32 orderId, uint256 amount);
     event RefundProcessed(bytes32 orderId, uint256 amount);
+    event OrderConfirmed(bytes32 orderId);
     event ShopOpen(uint256 timestamp);
     event ShopClosed(uint256 timestamp);
     event OwnershipTransferInitiated(address indexed previousOwner, address indexed newOwner);
@@ -79,6 +83,8 @@ contract Shop {
     error InvalidPendingOwner();
     error NoPendingOwnershipTransfer();
     error TransferFailed();
+    error OrderAlreadyConfirmed();
+    error InvalidOrder();
 
     constructor(
         uint256 price,
@@ -124,7 +130,7 @@ contract Shop {
         uint256 nonce = nonces[msg.sender];
         bytes32 orderId = keccak256(abi.encode(msg.sender, nonce));
         nonces[msg.sender]++;
-        orders[orderId] = Transaction.Order(msg.sender, nonce, PRICE, block.timestamp);
+        orders[orderId] = Transaction.Order(msg.sender, nonce, PRICE, block.timestamp, false);
         lastBuy = block.timestamp;
         emit BuyOrder(orderId, msg.value);
     }
@@ -142,6 +148,9 @@ contract Shop {
 
         // Effects - update state before external calls
         refunds[orderId] = true;
+        if (order.confirmed) {
+            totalConfirmedAmount -= order.amount;
+        }
         uint256 refundAmount = PRICE.getRefund(REFUND_RATE, REFUND_BASE);
 
         // Interactions - external call last
@@ -150,19 +159,51 @@ contract Shop {
         emit RefundProcessed(orderId, refundAmount);
     }
 
+    function getOrder(
+        bytes32 orderId
+    ) external view returns (Transaction.Order memory) {
+        return orders[orderId];
+    }
+
+    function confirmReceived(
+        bytes32 orderId
+    ) external {
+        Transaction.Order storage order = orders[orderId];
+
+        // Checks
+        if (order.buyer == address(0)) revert InvalidOrder();
+        if (order.buyer != msg.sender) revert InvalidRefundBenefiary();
+        if (order.confirmed) revert OrderAlreadyConfirmed();
+
+        // Effects
+        order.confirmed = true;
+        totalConfirmedAmount += order.amount;
+
+        emit OrderConfirmed(orderId);
+    }
+
     function withdraw() public onlyOwner {
+        uint256 confirmedAmount = totalConfirmedAmount;
+        uint256 unconfirmedAmount = address(this).balance - confirmedAmount;
+        uint256 withdrawable = confirmedAmount;
+
+        // For unconfirmed amounts, apply old logic
         if (lastBuy + REFUND_POLICY < block.timestamp) {
-            // Full withdrawal allowed - refund period has passed
-            uint256 amount = address(this).balance;
+            // Full withdrawal of remaining allowed - refund period has passed
+            withdrawable += unconfirmedAmount;
             partialWithdrawal = false;
-            (bool success,) = owner.call{ value: amount }("");
-            if (!success) revert TransferFailed();
         } else {
-            // Partial withdrawal only - refund period still active
-            if (partialWithdrawal) revert WaitUntilRefundPeriodPassed();
+            // Partial withdrawal of remaining only
+            if (partialWithdrawal) {
+                revert WaitUntilRefundPeriodPassed();
+            }
+            withdrawable += unconfirmedAmount * REFUND_RATE / REFUND_BASE;
             partialWithdrawal = true;
-            uint256 amount = address(this).balance * REFUND_RATE / REFUND_BASE;
-            (bool success,) = owner.call{ value: amount }("");
+        }
+
+        if (withdrawable > 0) {
+            totalConfirmedAmount = 0; // Mark as paid
+            (bool success,) = owner.call{ value: withdrawable }("");
             if (!success) revert TransferFailed();
         }
     }

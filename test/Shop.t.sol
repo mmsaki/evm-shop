@@ -573,4 +573,99 @@ contract CounterTest is Setup {
         assertEq(newOwner.balance, newOwnerBalanceBefore + shopBalance);
         assertEq(address(shop).balance, 0);
     }
+
+    // ============ Confirmation Tests ============
+
+    function test_confirm_received() public makeOrder(user1) {
+        bytes32 orderId = keccak256(abi.encode(user1, uint256(0)));
+        shop.confirmReceived(orderId);
+        assertTrue(shop.getOrder(orderId).confirmed);
+        assertEq(shop.totalConfirmedAmount(), PRICE);
+    }
+
+    function test_confirm_received_event() public makeOrder(user1) {
+        bytes32 orderId = keccak256(abi.encode(user1, uint256(0)));
+        vm.expectEmit(true, false, false, false);
+        emit Shop.OrderConfirmed(orderId);
+        shop.confirmReceived(orderId);
+    }
+
+    function test_confirm_received_wrong_buyer() public makeOrder(user1) {
+        bytes32 orderId = keccak256(abi.encode(user1, uint256(0)));
+        vm.startPrank(user2);
+        vm.expectRevert(Shop.InvalidRefundBenefiary.selector);
+        shop.confirmReceived(orderId);
+        vm.stopPrank();
+    }
+
+    function test_confirm_received_invalid_order() public useCaller(user1) {
+        bytes32 fakeOrderId = keccak256(abi.encode(user1, uint256(999)));
+        vm.expectRevert(Shop.InvalidOrder.selector);
+        shop.confirmReceived(fakeOrderId);
+    }
+
+    function test_confirm_received_already_confirmed() public makeOrder(user1) {
+        bytes32 orderId = keccak256(abi.encode(user1, uint256(0)));
+        shop.confirmReceived(orderId);
+        vm.expectRevert(Shop.OrderAlreadyConfirmed.selector);
+        shop.confirmReceived(orderId);
+    }
+
+    function test_withdraw_confirmed_order() public makeOrder(user1) {
+        bytes32 orderId = keccak256(abi.encode(user1, uint256(0)));
+        shop.confirmReceived(orderId);
+
+        uint256 ownerBalanceBefore = owner.balance;
+        uint256 shopBalanceBefore = address(shop).balance;
+        vm.startPrank(owner);
+        shop.withdraw();
+        vm.stopPrank();
+
+        uint256 expectedWithdrawn = PRICE + (shopBalanceBefore - PRICE) * REFUND_RATE / REFUND_BASE; // confirmed + partial unconfirmed
+        assertEq(owner.balance, ownerBalanceBefore + expectedWithdrawn);
+        assertEq(address(shop).balance, shopBalanceBefore - expectedWithdrawn);
+        assertEq(shop.totalConfirmedAmount(), 0);
+        assertTrue(shop.partialWithdrawal());
+    }
+
+    function test_refund_after_confirm_succeeds() public makeOrder(user1) {
+        bytes32 orderId = keccak256(abi.encode(user1, uint256(0)));
+        shop.confirmReceived(orderId);
+
+        uint256 shopBalanceBefore = address(shop).balance;
+        uint256 userBalanceBefore = user1.balance;
+
+        shop.refund(orderId);
+
+        uint256 expectedRefund = PRICE.getRefund(REFUND_RATE, REFUND_BASE);
+        assertEq(user1.balance, userBalanceBefore + expectedRefund);
+        assertEq(address(shop).balance, shopBalanceBefore - expectedRefund);
+        assertEq(shop.totalConfirmedAmount(), 0); // Should be subtracted
+        assertTrue(shop.refunds(orderId));
+    }
+
+    function test_multiple_orders_confirmation() public useCaller(user1) {
+        shop.buy{ value: TOTAL }();
+        bytes32 orderId1 = keccak256(abi.encode(user1, uint256(0)));
+
+        shop.buy{ value: TOTAL }();
+        bytes32 orderId2 = keccak256(abi.encode(user1, uint256(1)));
+
+        shop.confirmReceived(orderId1);
+
+        assertEq(shop.totalConfirmedAmount(), PRICE);
+
+        shop.confirmReceived(orderId2);
+
+        assertEq(shop.totalConfirmedAmount(), 2 * PRICE);
+
+        uint256 shopBalanceBefore = address(shop).balance;
+        vm.startPrank(owner);
+        shop.withdraw();
+        vm.stopPrank();
+
+        uint256 expectedWithdrawn = 2 * PRICE + (shopBalanceBefore - 2 * PRICE) * REFUND_RATE / REFUND_BASE;
+        assertEq(address(shop).balance, shopBalanceBefore - expectedWithdrawn);
+        assertEq(shop.totalConfirmedAmount(), 0);
+    }
 }
