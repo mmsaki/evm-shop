@@ -19,7 +19,6 @@
 **A trust-minimized e-commerce smart contract with buyer protections, flexible seller withdrawals.**
 
 ![GitHub License](https://img.shields.io/github/license/mmsaki/evm-shop)
-
 [![Solidity: 0.8.30](https://img.shields.io/badge/Solidity-0.8.30-blue.svg)](https://soliditylang.org/)
 [![Tests](https://github.com/mmsaki/evm-shop/actions/workflows/test.yml/badge.svg)](https://github.com/mmsaki/evm-shop/actions/workflows/test.yml)
 
