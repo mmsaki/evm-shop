@@ -15,8 +15,8 @@ contract Setup is Test {
     uint16 immutable REFUND_BASE = 1000;
     uint256 immutable REFUND_POLICY = 24 hours;
 
-    address user1 = makeAddr("user");
-    address user2 = makeAddr("user");
+    address user1 = makeAddr("user1");
+    address user2 = makeAddr("user2");
     address owner = makeAddr("owner");
 
     function setUp() public virtual {
@@ -199,6 +199,7 @@ contract CounterTest is Setup {
     function test_refund_wrong_buyer() public makeOrder(user1) {
         bytes32 orderId = keccak256(abi.encode(user1, uint256(0)));
         vm.startPrank(user2);
+        vm.expectRevert();
         shop.refund(orderId);
         vm.stopPrank();
     }
@@ -206,7 +207,107 @@ contract CounterTest is Setup {
     function test_double_refund() public makeOrder(user1) {
         bytes32 orderId = keccak256(abi.encode(user1, uint256(0)));
         shop.refund(orderId);
-        vm.expectRevert();
+        vm.expectRevert(Shop.DuplicateRefundClaim.selector);
         shop.refund(orderId);
+    }
+
+    function test_buy_with_excess_amount() public useCaller(user1) {
+        vm.expectRevert(Shop.ExcessAmount.selector);
+        shop.buy{value: TOTAL + 1}();
+    }
+
+    function test_buy_with_insufficient_amount() public useCaller(user1) {
+        vm.expectRevert(Shop.InsuffientAmount.selector);
+        shop.buy{value: TOTAL - 1}();
+    }
+
+    function test_refund_nonexistent_order() public useCaller(user1) {
+        bytes32 fakeOrderId = keccak256(abi.encode(user1, uint256(999)));
+        vm.expectRevert(Shop.InvalidRefundBenefiary.selector);
+        shop.refund(fakeOrderId);
+    }
+
+    function test_unauthorized_withdrawal() public useCaller(user1) {
+        vm.expectRevert(Shop.UnauthorizedAccess.selector);
+        shop.withdraw();
+    }
+
+    function test_refund_expires_at_exact_policy_time() public makeOrder(user1) {
+        bytes32 orderId = keccak256(abi.encode(user1, uint256(0)));
+        vm.warp(block.timestamp + REFUND_POLICY);
+        // At exactly REFUND_POLICY time, should still work (< not <=)
+        shop.refund(orderId);
+    }
+
+    function test_refund_expired_one_second_after() public makeOrder(user1) {
+        bytes32 orderId = keccak256(abi.encode(user1, uint256(0)));
+        vm.warp(block.timestamp + REFUND_POLICY + 1);
+        vm.expectRevert(Shop.RefundPolicyExpired.selector);
+        shop.refund(orderId);
+    }
+
+    function test_partial_withdrawal_only_once() public makeOrder(user1) {
+        vm.startPrank(owner);
+        shop.withdraw(); // First partial withdrawal
+        vm.expectRevert(Shop.WaitUntilRefundPeriodPassed.selector);
+        shop.withdraw(); // Second partial withdrawal should fail
+        vm.stopPrank();
+    }
+
+    function test_multiple_orders_same_user() public useCaller(user1) {
+        shop.buy{value: TOTAL}();
+        bytes32 orderId1 = keccak256(abi.encode(user1, uint256(0)));
+
+        shop.buy{value: TOTAL}();
+        bytes32 orderId2 = keccak256(abi.encode(user1, uint256(1)));
+
+        // Both orders should have different IDs
+        assertTrue(orderId1 != orderId2);
+
+        // Should be able to refund both
+        shop.refund(orderId1);
+        shop.refund(orderId2);
+
+        assertTrue(shop.refunds(orderId1));
+        assertTrue(shop.refunds(orderId2));
+    }
+
+    function test_shop_opens_only_when_closed() public useCaller(owner) {
+        // Opening already open shop should not emit event
+        shop.openShop(); // No event expected since shop is already open
+
+        shop.closeShop();
+        vm.expectEmit(true, false, false, false);
+        emit Shop.ShopOpen(block.timestamp);
+        shop.openShop(); // Should emit event
+    }
+
+    function test_balance_after_refund() public makeOrder(user1) {
+        bytes32 orderId = keccak256(abi.encode(user1, uint256(0)));
+        uint256 userBalanceBefore = user1.balance;
+        uint256 shopBalanceBefore = address(shop).balance;
+        uint256 expectedRefund = PRICE.getRefund(REFUND_RATE, REFUND_BASE);
+
+        shop.refund(orderId);
+
+        assertEq(user1.balance, userBalanceBefore + expectedRefund);
+        assertEq(address(shop).balance, shopBalanceBefore - expectedRefund);
+    }
+
+    function test_nonce_increments_correctly() public useCaller(user1) {
+        assertEq(shop.nonces(user1), 0);
+        shop.buy{value: TOTAL}();
+        assertEq(shop.nonces(user1), 1);
+        shop.buy{value: TOTAL}();
+        assertEq(shop.nonces(user1), 2);
+        shop.buy{value: TOTAL}();
+        assertEq(shop.nonces(user1), 3);
+    }
+
+    function test_receive_function() public {
+        // Test that contract can receive ETH directly
+        (bool success, ) = address(shop).call{value: 1 ether}("");
+        assertTrue(success);
+        assertEq(address(shop).balance, 1 ether);
     }
 }

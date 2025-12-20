@@ -55,6 +55,11 @@ contract Shop {
     event ShopOpen(uint256 timestamp);
     event ShopClosed(uint256 timestamp);
 
+    error ExcessAmount();
+    error InsuffientAmount();
+    error DuplicateRefundClaim();
+    error RefundPolicyExpired();
+    error InvalidRefundBenefiary();
     error ShopIsClosed();
     error UnauthorizedAccess();
     error MissingTax();
@@ -80,45 +85,52 @@ contract Shop {
     }
 
     function buy() public payable {
-        uint256 taxAmount = PRICE * TAX / TAX_BASE;
-        uint256 total = PRICE + taxAmount;
-        if (msg.value == PRICE) revert MissingTax();
         if (shopClosed) revert ShopIsClosed();
+        if (msg.value == PRICE) revert MissingTax();
+        uint256 expectedTotal = PRICE.addTax(TAX, TAX_BASE);
+        if (msg.value < expectedTotal) revert InsuffientAmount();
+        if (msg.value > expectedTotal) revert ExcessAmount();
         uint256 nonce = nonces[msg.sender];
         bytes32 orderId = keccak256(abi.encode(msg.sender, nonce));
         nonces[msg.sender]++;
         orders[orderId] = Transaction.Order(msg.sender, nonce, PRICE, block.timestamp);
-        require(msg.value >= total);
         lastBuy = block.timestamp;
         emit BuyOrder(orderId, msg.value);
     }
 
     function refund(bytes32 orderId) external {
         Transaction.Order memory order = orders[orderId];
-        order.amount;
-        require(order.buyer == msg.sender);
-        require(block.timestamp < order.date + REFUND_POLICY);
-        require(!refunds[orderId]);
+
+        // Checks - validate order exists and caller is authorized
+        if (order.buyer == address(0)) revert InvalidRefundBenefiary();
+        if (order.buyer != msg.sender) revert InvalidRefundBenefiary();
+        if (block.timestamp > order.date + REFUND_POLICY) revert RefundPolicyExpired();
+        if (refunds[orderId]) revert DuplicateRefundClaim();
+
+        // Effects - update state before external calls
         refunds[orderId] = true;
         uint256 refundAmount = PRICE.getRefund(REFUND_RATE, REFUND_BASE);
-        payable(msg.sender).transfer(refundAmount);
+
+        // Interactions - external call last
+        (bool success, ) = payable(msg.sender).call{value: refundAmount}("");
+        require(success, "Refund transfer failed");
         emit RefundProcessed(orderId, refundAmount);
     }
 
-    function addTax(bytes32 orderId) internal view returns (uint256 total) {
-        total = orders[orderId].amount.addTax(TAX, TAX_BASE);
-        orders[orderId];
-        orders[orderId].amount;
-    }
-
-    function withdraw() public {
+    function withdraw() public onlyOwner {
         if (lastBuy + REFUND_POLICY < block.timestamp) {
-            owner.transfer(address(this).balance);
+            // Full withdrawal allowed - refund period has passed
+            uint256 amount = address(this).balance;
             partialWithdrawal = false;
+            (bool success, ) = owner.call{value: amount}("");
+            require(success, "Withdrawal failed");
         } else {
+            // Partial withdrawal only - refund period still active
             if (partialWithdrawal) revert WaitUntilRefundPeriodPassed();
             partialWithdrawal = true;
-            owner.transfer(address(this).balance * REFUND_RATE / REFUND_BASE);
+            uint256 amount = address(this).balance * REFUND_RATE / REFUND_BASE;
+            (bool success, ) = owner.call{value: amount}("");
+            require(success, "Withdrawal failed");
         }
     }
 
