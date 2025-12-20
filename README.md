@@ -36,6 +36,12 @@ forge install
 # Run tests
 forge test
 
+# Check coverage
+forge coverage
+
+# Gas snapshot
+forge snapshot
+
 # Deploy
 forge script script/Shop.s.sol --rpc-url $RPC_URL --broadcast
 ```
@@ -60,6 +66,17 @@ Default deployment parameters:
 - **Refund**: 50% within 24 hours
 - **Solidity**: 0.8.30
 
+```solidity
+new Shop(
+    1e16,       // 0.01 ETH price
+    100,        // 10% tax (100/1000)
+    1000,       // Tax base
+    500,        // 50% refund (500/1000)
+    1000,       // Refund base
+    24 hours    // 24-hour refund window
+);
+```
+
 ## 📜 License
 
 MIT License - see [LICENSE](LICENSE) for details.
@@ -69,6 +86,4 @@ MIT License - see [LICENSE](LICENSE) for details.
 - [Foundry Documentation](https://book.getfoundry.sh/)
 - [Solidity Documentation](https://docs.soliditylang.org/)
 
----
-
-**Built with ❤️ using Foundry and Solidity 0.8.30**
+**Built with ❤️**
