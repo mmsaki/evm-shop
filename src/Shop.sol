@@ -130,7 +130,7 @@ contract Shop {
         uint256 nonce = nonces[msg.sender];
         bytes32 orderId = keccak256(abi.encode(msg.sender, nonce));
         nonces[msg.sender]++;
-        orders[orderId] = Transaction.Order(msg.sender, nonce, PRICE, block.timestamp, false);
+        orders[orderId] = Transaction.Order(msg.sender, nonce, expectedTotal, block.timestamp, false);
         lastBuy = block.timestamp;
         emit BuyOrder(orderId, msg.value);
     }
@@ -151,7 +151,7 @@ contract Shop {
         if (order.confirmed) {
             totalConfirmedAmount -= order.amount;
         }
-        uint256 refundAmount = PRICE.getRefund(REFUND_RATE, REFUND_BASE);
+        uint256 refundAmount = order.amount.getRefund(REFUND_RATE, REFUND_BASE);
 
         // Interactions - external call last
         (bool success,) = payable(msg.sender).call{ value: refundAmount }("");
@@ -183,28 +183,37 @@ contract Shop {
     }
 
     function withdraw() public onlyOwner {
+        uint256 balance = address(this).balance;
         uint256 confirmedAmount = totalConfirmedAmount;
-        uint256 unconfirmedAmount = address(this).balance - confirmedAmount;
-        uint256 withdrawable = confirmedAmount;
+        uint256 unconfirmedAmount = balance - confirmedAmount;
+        uint256 withdrawable = 0;
 
-        // For unconfirmed amounts, apply old logic
+        // Check if refund period has passed
         if (lastBuy + REFUND_POLICY < block.timestamp) {
-            // Full withdrawal of remaining allowed - refund period has passed
-            withdrawable += unconfirmedAmount;
+            // Full withdrawal allowed - refund period has passed for all orders
+            withdrawable = balance;
             partialWithdrawal = false;
+
+            if (withdrawable > 0) {
+                totalConfirmedAmount = 0; // Reset since everything is withdrawn
+                (bool success,) = owner.call{ value: withdrawable }("");
+                if (!success) revert TransferFailed();
+            }
         } else {
-            // Partial withdrawal of remaining only
+            // Refund period still active - only allow partial withdrawal of unconfirmed amounts
+            // Confirmed amounts are locked until refund period passes
             if (partialWithdrawal) {
                 revert WaitUntilRefundPeriodPassed();
             }
-            withdrawable += unconfirmedAmount * REFUND_RATE / REFUND_BASE;
-            partialWithdrawal = true;
-        }
 
-        if (withdrawable > 0) {
-            totalConfirmedAmount = 0; // Mark as paid
-            (bool success,) = owner.call{ value: withdrawable }("");
-            if (!success) revert TransferFailed();
+            withdrawable = unconfirmedAmount * REFUND_RATE / REFUND_BASE;
+            partialWithdrawal = true;
+
+            if (withdrawable > 0) {
+                // Don't touch totalConfirmedAmount - confirmed funds stay locked
+                (bool success,) = owner.call{ value: withdrawable }("");
+                if (!success) revert TransferFailed();
+            }
         }
     }
 
@@ -246,5 +255,7 @@ contract Shop {
         emit OwnershipTransferInitiated(owner, address(0));
     }
 
-    receive() external payable { }
+    receive() external payable {
+        revert("Direct transfers not allowed");
+    }
 }

@@ -86,7 +86,7 @@ contract CounterTest is Setup {
     function test_refund() public makeOrder(user1) {
         bytes32 orderId = keccak256(abi.encode(user1, shop.nonces(user1) - 1));
         shop.refund(orderId);
-        assertEq(address(shop).balance, TOTAL - PRICE.getRefund(REFUND_RATE, REFUND_BASE));
+        assertEq(address(shop).balance, TOTAL - TOTAL.getRefund(REFUND_RATE, REFUND_BASE));
         assertEq(shop.nonces(user1), 1);
         assertEq(shop.refunds(orderId), true);
     }
@@ -293,7 +293,7 @@ contract CounterTest is Setup {
         bytes32 orderId = keccak256(abi.encode(user1, uint256(0)));
         uint256 userBalanceBefore = user1.balance;
         uint256 shopBalanceBefore = address(shop).balance;
-        uint256 expectedRefund = PRICE.getRefund(REFUND_RATE, REFUND_BASE);
+        uint256 expectedRefund = TOTAL.getRefund(REFUND_RATE, REFUND_BASE);
 
         shop.refund(orderId);
 
@@ -312,10 +312,10 @@ contract CounterTest is Setup {
     }
 
     function test_receive_function() public {
-        // Test that contract can receive ETH directly
+        // Test that contract rejects direct ETH transfers
         (bool success,) = address(shop).call{ value: 1 ether }("");
-        assertTrue(success);
-        assertEq(address(shop).balance, 1 ether);
+        assertFalse(success);
+        assertEq(address(shop).balance, 0);
     }
 
     // ============ Constructor Validation Tests ============
@@ -580,7 +580,7 @@ contract CounterTest is Setup {
         bytes32 orderId = keccak256(abi.encode(user1, uint256(0)));
         shop.confirmReceived(orderId);
         assertTrue(shop.getOrder(orderId).confirmed);
-        assertEq(shop.totalConfirmedAmount(), PRICE);
+        assertEq(shop.totalConfirmedAmount(), TOTAL);
     }
 
     function test_confirm_received_event() public makeOrder(user1) {
@@ -617,15 +617,17 @@ contract CounterTest is Setup {
 
         uint256 ownerBalanceBefore = owner.balance;
         uint256 shopBalanceBefore = address(shop).balance;
+
+        // During refund period, confirmed funds are locked
         vm.startPrank(owner);
         shop.withdraw();
         vm.stopPrank();
 
-        uint256 expectedWithdrawn = PRICE + (shopBalanceBefore - PRICE) * REFUND_RATE / REFUND_BASE; // confirmed + partial unconfirmed
-        assertEq(owner.balance, ownerBalanceBefore + expectedWithdrawn);
-        assertEq(address(shop).balance, shopBalanceBefore - expectedWithdrawn);
-        assertEq(shop.totalConfirmedAmount(), 0);
-        assertTrue(shop.partialWithdrawal());
+        // No funds should be withdrawn (all are confirmed, 0 unconfirmed)
+        assertEq(owner.balance, ownerBalanceBefore);
+        assertEq(address(shop).balance, shopBalanceBefore);
+        assertEq(shop.totalConfirmedAmount(), TOTAL); // Should remain unchanged
+        assertTrue(shop.partialWithdrawal()); // Partial withdrawal flag is set even if nothing withdrawn
     }
 
     function test_refund_after_confirm_succeeds() public makeOrder(user1) {
@@ -637,7 +639,7 @@ contract CounterTest is Setup {
 
         shop.refund(orderId);
 
-        uint256 expectedRefund = PRICE.getRefund(REFUND_RATE, REFUND_BASE);
+        uint256 expectedRefund = TOTAL.getRefund(REFUND_RATE, REFUND_BASE);
         assertEq(user1.balance, userBalanceBefore + expectedRefund);
         assertEq(address(shop).balance, shopBalanceBefore - expectedRefund);
         assertEq(shop.totalConfirmedAmount(), 0); // Should be subtracted
@@ -653,19 +655,313 @@ contract CounterTest is Setup {
 
         shop.confirmReceived(orderId1);
 
-        assertEq(shop.totalConfirmedAmount(), PRICE);
+        assertEq(shop.totalConfirmedAmount(), TOTAL);
 
         shop.confirmReceived(orderId2);
 
-        assertEq(shop.totalConfirmedAmount(), 2 * PRICE);
+        assertEq(shop.totalConfirmedAmount(), 2 * TOTAL);
+
+        // Warp past refund period to allow withdrawal of confirmed funds
+        vm.warp(block.timestamp + REFUND_POLICY + 1);
 
         uint256 shopBalanceBefore = address(shop).balance;
         vm.startPrank(owner);
         shop.withdraw();
         vm.stopPrank();
 
-        uint256 expectedWithdrawn = 2 * PRICE + (shopBalanceBefore - 2 * PRICE) * REFUND_RATE / REFUND_BASE;
-        assertEq(address(shop).balance, shopBalanceBefore - expectedWithdrawn);
+        // After refund period, all funds should be withdrawable
+        assertEq(address(shop).balance, 0);
         assertEq(shop.totalConfirmedAmount(), 0);
+    }
+
+    // ============ Accounting Security Tests ============
+
+    function test_accounting_confirmed_amount_includes_tax() public makeOrder(user1) {
+        bytes32 orderId = keccak256(abi.encode(user1, uint256(0)));
+
+        // Confirm the order
+        shop.confirmReceived(orderId);
+
+        // totalConfirmedAmount should include both PRICE and TAX
+        assertEq(shop.totalConfirmedAmount(), TOTAL);
+        assertEq(shop.totalConfirmedAmount(), PRICE + TAX_AMOUNT);
+
+        // Verify the order stores the full amount
+        Transaction.Order memory order = shop.getOrder(orderId);
+        assertEq(order.amount, TOTAL);
+    }
+
+    function test_accounting_refund_includes_tax() public makeOrder(user1) {
+        bytes32 orderId = keccak256(abi.encode(user1, uint256(0)));
+
+        uint256 userBalanceBefore = user1.balance;
+        uint256 expectedRefund = TOTAL * REFUND_RATE / REFUND_BASE;
+
+        // Refund should be calculated on TOTAL (PRICE + TAX), not just PRICE
+        shop.refund(orderId);
+
+        assertEq(user1.balance, userBalanceBefore + expectedRefund);
+        // User should get back 50% of what they paid (including tax)
+        assertEq(expectedRefund, (PRICE + TAX_AMOUNT) * REFUND_RATE / REFUND_BASE);
+    }
+
+    function test_accounting_direct_eth_transfer_reverts() public {
+        // Attempt to send ETH directly to the contract
+        (bool success,) = address(shop).call{ value: 1 ether }("");
+        assertFalse(success);
+
+        // Contract balance should remain 0
+        assertEq(address(shop).balance, 0);
+    }
+
+    function test_accounting_withdrawal_calculation_with_confirmed() public makeOrder(user1) {
+        bytes32 orderId = keccak256(abi.encode(user1, uint256(0)));
+
+        // Confirm the order
+        shop.confirmReceived(orderId);
+
+        uint256 contractBalance = address(shop).balance;
+        assertEq(contractBalance, TOTAL);
+        assertEq(shop.totalConfirmedAmount(), TOTAL);
+
+        // unconfirmedAmount should be 0, not TAX_AMOUNT (the old bug)
+        uint256 unconfirmedAmount = contractBalance - shop.totalConfirmedAmount();
+        assertEq(unconfirmedAmount, 0);
+
+        // Warp past refund period to allow confirmed funds withdrawal
+        vm.warp(block.timestamp + REFUND_POLICY + 1);
+
+        // Owner should be able to withdraw the full TOTAL amount
+        vm.startPrank(owner);
+        uint256 ownerBalanceBefore = owner.balance;
+        shop.withdraw();
+        vm.stopPrank();
+
+        assertEq(owner.balance, ownerBalanceBefore + TOTAL);
+        assertEq(address(shop).balance, 0);
+    }
+
+    function test_accounting_multiple_confirmations_track_correctly() public useCaller(user1) {
+        // Make 3 orders
+        shop.buy{ value: TOTAL }();
+        bytes32 orderId1 = keccak256(abi.encode(user1, uint256(0)));
+
+        shop.buy{ value: TOTAL }();
+        bytes32 orderId2 = keccak256(abi.encode(user1, uint256(1)));
+
+        shop.buy{ value: TOTAL }();
+        bytes32 orderId3 = keccak256(abi.encode(user1, uint256(2)));
+
+        // Confirm first order
+        shop.confirmReceived(orderId1);
+        assertEq(shop.totalConfirmedAmount(), TOTAL);
+
+        // Confirm second order
+        shop.confirmReceived(orderId2);
+        assertEq(shop.totalConfirmedAmount(), 2 * TOTAL);
+
+        // Confirm third order
+        shop.confirmReceived(orderId3);
+        assertEq(shop.totalConfirmedAmount(), 3 * TOTAL);
+
+        // Contract balance should equal totalConfirmedAmount
+        assertEq(address(shop).balance, 3 * TOTAL);
+        assertEq(address(shop).balance, shop.totalConfirmedAmount());
+    }
+
+    function test_accounting_refund_after_confirmation_decreases_confirmed_amount() public makeOrder(user1) {
+        bytes32 orderId = keccak256(abi.encode(user1, uint256(0)));
+
+        // Confirm order
+        shop.confirmReceived(orderId);
+        assertEq(shop.totalConfirmedAmount(), TOTAL);
+
+        // Refund the confirmed order
+        shop.refund(orderId);
+
+        // totalConfirmedAmount should decrease back to 0
+        assertEq(shop.totalConfirmedAmount(), 0);
+    }
+
+    function test_accounting_withdrawal_with_mixed_confirmed_unconfirmed() public useCaller(user1) {
+        // Make 2 orders
+        shop.buy{ value: TOTAL }();
+        bytes32 orderId1 = keccak256(abi.encode(user1, uint256(0)));
+
+        shop.buy{ value: TOTAL }();
+
+        // Confirm only the first order
+        shop.confirmReceived(orderId1);
+
+        // totalConfirmedAmount = TOTAL, total balance = 2 * TOTAL
+        assertEq(shop.totalConfirmedAmount(), TOTAL);
+        assertEq(address(shop).balance, 2 * TOTAL);
+
+        // Unconfirmed amount should be exactly TOTAL
+        uint256 unconfirmed = address(shop).balance - shop.totalConfirmedAmount();
+        assertEq(unconfirmed, TOTAL);
+
+        // Owner withdraws before refund period
+        vm.startPrank(owner);
+        uint256 ownerBalanceBefore = owner.balance;
+        shop.withdraw();
+        vm.stopPrank();
+
+        // Should withdraw: ONLY partial unconfirmed (TOTAL * 50%)
+        // Confirmed funds are locked during refund period
+        uint256 expectedWithdrawal = TOTAL * REFUND_RATE / REFUND_BASE;
+        assertEq(owner.balance, ownerBalanceBefore + expectedWithdrawal);
+
+        // Contract should retain: confirmed (TOTAL) + refundable unconfirmed portion
+        uint256 expectedRemaining = TOTAL + (TOTAL * (REFUND_BASE - REFUND_RATE) / REFUND_BASE);
+        assertEq(address(shop).balance, expectedRemaining);
+    }
+
+    // ============ Refund Period Protection Tests ============
+
+    function test_refund_protection_confirmed_funds_locked_during_period() public makeOrder(user1) {
+        bytes32 orderId = keccak256(abi.encode(user1, uint256(0)));
+
+        // User confirms order
+        shop.confirmReceived(orderId);
+        assertEq(shop.totalConfirmedAmount(), TOTAL);
+
+        // Owner attempts to withdraw during refund period
+        vm.startPrank(owner);
+        uint256 ownerBalanceBefore = owner.balance;
+        shop.withdraw();
+        vm.stopPrank();
+
+        // Confirmed funds should remain locked
+        assertEq(owner.balance, ownerBalanceBefore); // No withdrawal
+        assertEq(address(shop).balance, TOTAL); // All funds remain
+        assertEq(shop.totalConfirmedAmount(), TOTAL); // Tracking unchanged
+    }
+
+    function test_refund_protection_confirmed_funds_available_after_period() public makeOrder(user1) {
+        bytes32 orderId = keccak256(abi.encode(user1, uint256(0)));
+
+        // User confirms order
+        shop.confirmReceived(orderId);
+        assertEq(shop.totalConfirmedAmount(), TOTAL);
+
+        // Warp past refund period
+        vm.warp(block.timestamp + REFUND_POLICY + 1);
+
+        // Owner withdraws after refund period
+        vm.startPrank(owner);
+        uint256 ownerBalanceBefore = owner.balance;
+        shop.withdraw();
+        vm.stopPrank();
+
+        // All funds should be withdrawn
+        assertEq(owner.balance, ownerBalanceBefore + TOTAL);
+        assertEq(address(shop).balance, 0);
+        assertEq(shop.totalConfirmedAmount(), 0);
+    }
+
+    function test_refund_protection_user_can_refund_confirmed_order() public makeOrder(user1) {
+        bytes32 orderId = keccak256(abi.encode(user1, uint256(0)));
+
+        // User confirms order
+        shop.confirmReceived(orderId);
+        assertEq(shop.totalConfirmedAmount(), TOTAL);
+
+        // Owner attempts withdrawal (nothing happens since all confirmed)
+        vm.startPrank(owner);
+        shop.withdraw();
+        vm.stopPrank();
+
+        // User can still refund the confirmed order
+        vm.startPrank(user1);
+        uint256 userBalanceBefore = user1.balance;
+        shop.refund(orderId);
+
+        // User receives refund successfully
+        uint256 expectedRefund = TOTAL * REFUND_RATE / REFUND_BASE;
+        assertEq(user1.balance, userBalanceBefore + expectedRefund);
+        assertEq(shop.totalConfirmedAmount(), 0); // Decreased after refund
+        vm.stopPrank();
+    }
+
+    function test_refund_protection_prevents_double_withdrawal_issue() public useCaller(user1) {
+        // User1 makes and confirms order
+        shop.buy{ value: TOTAL }();
+        bytes32 orderId1 = keccak256(abi.encode(user1, uint256(0)));
+        shop.confirmReceived(orderId1);
+
+        // User2 makes and confirms order
+        vm.startPrank(user2);
+        shop.buy{ value: TOTAL }();
+        bytes32 orderId2 = keccak256(abi.encode(user2, uint256(0)));
+        shop.confirmReceived(orderId2);
+        vm.stopPrank();
+
+        assertEq(shop.totalConfirmedAmount(), 2 * TOTAL);
+
+        // Owner withdraws during refund period (nothing happens)
+        vm.prank(owner);
+        shop.withdraw();
+        assertEq(shop.totalConfirmedAmount(), 2 * TOTAL); // Still tracked
+
+        // User1 refunds
+        vm.prank(user1);
+        shop.refund(orderId1);
+        assertEq(shop.totalConfirmedAmount(), TOTAL); // Correctly decreased
+
+        // User2 can also refund without underflow
+        vm.prank(user2);
+        shop.refund(orderId2);
+        assertEq(shop.totalConfirmedAmount(), 0); // Correctly decreased to 0
+    }
+
+    function test_refund_protection_mixed_scenario() public {
+        // Make 3 orders as user1
+        vm.startPrank(user1);
+        shop.buy{ value: TOTAL }();
+        bytes32 orderId1 = keccak256(abi.encode(user1, uint256(0)));
+
+        shop.buy{ value: TOTAL }();
+        bytes32 orderId2 = keccak256(abi.encode(user1, uint256(1)));
+
+        shop.buy{ value: TOTAL }();
+        bytes32 orderId3 = keccak256(abi.encode(user1, uint256(2)));
+
+        // Confirm only orders 1 and 2
+        shop.confirmReceived(orderId1);
+        shop.confirmReceived(orderId2);
+        vm.stopPrank();
+
+        // totalConfirmedAmount = 2 * TOTAL, unconfirmed = TOTAL
+        assertEq(shop.totalConfirmedAmount(), 2 * TOTAL);
+        assertEq(address(shop).balance, 3 * TOTAL);
+
+        // Owner withdraws during refund period
+        vm.startPrank(owner);
+        uint256 ownerBalanceBefore = owner.balance;
+        shop.withdraw();
+        vm.stopPrank();
+
+        // Should only withdraw partial unconfirmed amount
+        uint256 expectedWithdrawal = TOTAL * REFUND_RATE / REFUND_BASE;
+        assertEq(owner.balance, ownerBalanceBefore + expectedWithdrawal);
+
+        // Confirmed amount tracking should be intact
+        assertEq(shop.totalConfirmedAmount(), 2 * TOTAL);
+
+        // Users can refund their confirmed orders
+        vm.startPrank(user1);
+        shop.refund(orderId1);
+        assertEq(shop.totalConfirmedAmount(), TOTAL);
+
+        shop.refund(orderId2);
+        assertEq(shop.totalConfirmedAmount(), 0);
+
+        // User can also refund unconfirmed order
+        shop.refund(orderId3);
+        vm.stopPrank();
+
+        // No underflow or accounting errors occurred
+        assertTrue(true);
     }
 }
