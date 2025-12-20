@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {Script} from "forge-std/Script.sol";
-import {Shop} from "../src/Shop.sol";
+import { Script } from "forge-std/Script.sol";
+import { Shop } from "../src/Shop.sol";
 
 contract CounterScript is Script {
     Shop public shop;
@@ -23,7 +23,7 @@ contract CounterScript is Script {
     // Refund policy: 24 hours
     uint256 immutable REFUND_POLICY = 24 hours;
 
-    function setUp() public {}
+    function setUp() public { }
 
     function run() public {
         vm.startBroadcast();

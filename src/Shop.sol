@@ -23,11 +23,19 @@ library Transaction {
         uint256 date;
     }
 
-    function addTax(uint256 amount, uint16 tax, uint16 base) internal pure returns (uint256) {
+    function addTax(
+        uint256 amount,
+        uint16 tax,
+        uint16 base
+    ) internal pure returns (uint256) {
         return amount + (amount * tax / base);
     }
 
-    function getRefund(uint256 amount, uint16 rate, uint16 base) internal pure returns (uint256) {
+    function getRefund(
+        uint256 amount,
+        uint16 rate,
+        uint16 base
+    ) internal pure returns (uint256) {
         return amount * rate / base;
     }
 }
@@ -72,7 +80,14 @@ contract Shop {
     error NoPendingOwnershipTransfer();
     error TransferFailed();
 
-    constructor(uint256 price, uint16 tax, uint16 taxBase, uint16 refundRate, uint16 refundBase, uint256 refundPolicy) {
+    constructor(
+        uint256 price,
+        uint16 tax,
+        uint16 taxBase,
+        uint16 refundRate,
+        uint16 refundBase,
+        uint256 refundPolicy
+    ) {
         if (price == 0) revert InvalidConstructorParameters();
         if (taxBase == 0) revert InvalidConstructorParameters();
         if (tax > taxBase) revert InvalidConstructorParameters();
@@ -114,7 +129,9 @@ contract Shop {
         emit BuyOrder(orderId, msg.value);
     }
 
-    function refund(bytes32 orderId) external {
+    function refund(
+        bytes32 orderId
+    ) external {
         Transaction.Order memory order = orders[orderId];
 
         // Checks - validate order exists and caller is authorized
@@ -128,7 +145,7 @@ contract Shop {
         uint256 refundAmount = PRICE.getRefund(REFUND_RATE, REFUND_BASE);
 
         // Interactions - external call last
-        (bool success,) = payable(msg.sender).call{value: refundAmount}("");
+        (bool success,) = payable(msg.sender).call{ value: refundAmount }("");
         if (!success) revert TransferFailed();
         emit RefundProcessed(orderId, refundAmount);
     }
@@ -138,14 +155,14 @@ contract Shop {
             // Full withdrawal allowed - refund period has passed
             uint256 amount = address(this).balance;
             partialWithdrawal = false;
-            (bool success,) = owner.call{value: amount}("");
+            (bool success,) = owner.call{ value: amount }("");
             if (!success) revert TransferFailed();
         } else {
             // Partial withdrawal only - refund period still active
             if (partialWithdrawal) revert WaitUntilRefundPeriodPassed();
             partialWithdrawal = true;
             uint256 amount = address(this).balance * REFUND_RATE / REFUND_BASE;
-            (bool success,) = owner.call{value: amount}("");
+            (bool success,) = owner.call{ value: amount }("");
             if (!success) revert TransferFailed();
         }
     }
@@ -162,7 +179,9 @@ contract Shop {
         emit ShopClosed(block.timestamp);
     }
 
-    function transferOwnership(address payable newOwner) public onlyOwner {
+    function transferOwnership(
+        address payable newOwner
+    ) public onlyOwner {
         if (newOwner == address(0)) revert InvalidPendingOwner();
         if (newOwner == owner) revert InvalidPendingOwner();
         pendingOwner = newOwner;
@@ -186,5 +205,5 @@ contract Shop {
         emit OwnershipTransferInitiated(owner, address(0));
     }
 
-    receive() external payable {}
+    receive() external payable { }
 }

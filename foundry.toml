@@ -14,9 +14,6 @@ via_ir = false
 gas_reports = ["Shop"]
 gas_reports_ignore = []
 
-# Coverage settings
-coverage_exclude = ["test/**", "script/**", "lib/**"]
-
 # Test settings
 verbosity = 2
 fuzz = { runs = 256 }

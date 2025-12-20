@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {Test} from "forge-std/Test.sol";
-import {Shop, Transaction} from "../src/Shop.sol";
+import { Test } from "forge-std/Test.sol";
+import { Shop, Transaction } from "../src/Shop.sol";
 
 contract Setup is Test {
     Shop public shop;
@@ -31,19 +31,26 @@ contract Setup is Test {
         shop = new Shop(PRICE, TAX, TAX_BASE, REFUND_RATE, REFUND_BASE, REFUND_POLICY);
     }
 
-    function topUp(address user, uint256 amount) internal {
+    function topUp(
+        address user,
+        uint256 amount
+    ) internal {
         deal(user, amount);
     }
 
-    modifier useCaller(address user) {
+    modifier useCaller(
+        address user
+    ) {
         vm.startPrank(user);
         _;
         vm.stopPrank();
     }
 
-    modifier makeOrder(address user) {
+    modifier makeOrder(
+        address user
+    ) {
         vm.startPrank(user);
-        shop.buy{value: TOTAL}();
+        shop.buy{ value: TOTAL }();
         _;
         vm.stopPrank();
     }
@@ -66,12 +73,12 @@ contract CounterTest is Setup {
 
     function test_buy_without_tax() public useCaller(user1) {
         vm.expectRevert(Shop.MissingTax.selector);
-        shop.buy{value: PRICE}();
+        shop.buy{ value: PRICE }();
     }
 
     function test_buy_correct_amount() public useCaller(user1) {
         assertEq(shop.nonces(user1), 0);
-        shop.buy{value: TOTAL}();
+        shop.buy{ value: TOTAL }();
         assertEq(shop.nonces(user1), 1);
         assertEq(address(shop).balance, TOTAL);
     }
@@ -93,7 +100,7 @@ contract CounterTest is Setup {
         shop.closeShop();
         vm.startPrank(user1);
         vm.expectRevert(Shop.ShopIsClosed.selector);
-        shop.buy{value: TOTAL}();
+        shop.buy{ value: TOTAL }();
         vm.stopPrank();
     }
 
@@ -105,9 +112,9 @@ contract CounterTest is Setup {
     }
 
     function test_multiple_buys() public useCaller(user1) {
-        shop.buy{value: TOTAL}();
+        shop.buy{ value: TOTAL }();
         assertEq(shop.nonces(user1), 1);
-        shop.buy{value: TOTAL}();
+        shop.buy{ value: TOTAL }();
         assertEq(shop.nonces(user1), 2);
         assertEq(address(shop).balance, 2 * TOTAL);
     }
@@ -160,7 +167,7 @@ contract CounterTest is Setup {
 
         vm.startPrank(user1);
         vm.expectRevert(Shop.ShopIsClosed.selector);
-        shop.buy{value: TOTAL}();
+        shop.buy{ value: TOTAL }();
         vm.stopPrank();
 
         vm.startPrank(owner);
@@ -168,14 +175,14 @@ contract CounterTest is Setup {
         vm.stopPrank();
 
         vm.startPrank(user1);
-        shop.buy{value: TOTAL}(); // Should work now
+        shop.buy{ value: TOTAL }(); // Should work now
         vm.stopPrank();
     }
 
     function test_buy_event() public useCaller(user1) {
         vm.expectEmit(true, false, false, false);
         emit Shop.BuyOrder(bytes32(0), TOTAL);
-        shop.buy{value: TOTAL}();
+        shop.buy{ value: TOTAL }();
     }
 
     function test_refund_event() public makeOrder(user1) {
@@ -213,12 +220,12 @@ contract CounterTest is Setup {
 
     function test_buy_with_excess_amount() public useCaller(user1) {
         vm.expectRevert(Shop.ExcessAmount.selector);
-        shop.buy{value: TOTAL + 1}();
+        shop.buy{ value: TOTAL + 1 }();
     }
 
     function test_buy_with_insufficient_amount() public useCaller(user1) {
         vm.expectRevert(Shop.InsuffientAmount.selector);
-        shop.buy{value: TOTAL - 1}();
+        shop.buy{ value: TOTAL - 1 }();
     }
 
     function test_refund_nonexistent_order() public useCaller(user1) {
@@ -255,10 +262,10 @@ contract CounterTest is Setup {
     }
 
     function test_multiple_orders_same_user() public useCaller(user1) {
-        shop.buy{value: TOTAL}();
+        shop.buy{ value: TOTAL }();
         bytes32 orderId1 = keccak256(abi.encode(user1, uint256(0)));
 
-        shop.buy{value: TOTAL}();
+        shop.buy{ value: TOTAL }();
         bytes32 orderId2 = keccak256(abi.encode(user1, uint256(1)));
 
         // Both orders should have different IDs
@@ -296,17 +303,17 @@ contract CounterTest is Setup {
 
     function test_nonce_increments_correctly() public useCaller(user1) {
         assertEq(shop.nonces(user1), 0);
-        shop.buy{value: TOTAL}();
+        shop.buy{ value: TOTAL }();
         assertEq(shop.nonces(user1), 1);
-        shop.buy{value: TOTAL}();
+        shop.buy{ value: TOTAL }();
         assertEq(shop.nonces(user1), 2);
-        shop.buy{value: TOTAL}();
+        shop.buy{ value: TOTAL }();
         assertEq(shop.nonces(user1), 3);
     }
 
     function test_receive_function() public {
         // Test that contract can receive ETH directly
-        (bool success,) = address(shop).call{value: 1 ether}("");
+        (bool success,) = address(shop).call{ value: 1 ether }("");
         assertTrue(success);
         assertEq(address(shop).balance, 1 ether);
     }
@@ -540,7 +547,7 @@ contract CounterTest is Setup {
     function test_new_owner_can_withdraw() public {
         // Make an order first
         vm.startPrank(user1);
-        shop.buy{value: TOTAL}();
+        shop.buy{ value: TOTAL }();
         vm.stopPrank();
 
         address newOwner = makeAddr("newOwner");
