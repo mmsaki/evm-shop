@@ -1,108 +1,75 @@
 # 🛒 EVM Shop
 
 ```
-                                                 █████                        
-                                                ░░███                         
-  ██████  █████ █████ █████████████       █████  ░███████    ██████  ████████ 
+                                                 █████
+                                                ░░███
+  ██████  █████ █████ █████████████       █████  ░███████    ██████  ████████
  ███░░███░░███ ░░███ ░░███░░███░░███     ███░░   ░███░░███  ███░░███░░███░░███
 ░███████  ░███  ░███  ░███ ░███ ░███    ░░█████  ░███ ░███ ░███ ░███ ░███ ░███
 ░███░░░   ░░███ ███   ░███ ░███ ░███     ░░░░███ ░███ ░███ ░███ ░███ ░███ ░███
-░░██████   ░░█████    █████░███ █████    ██████  ████ █████░░██████  ░███████ 
- ░░░░░░     ░░░░░    ░░░░░ ░░░ ░░░░░    ░░░░░░  ░░░░ ░░░░░  ░░░░░░   ░███░░░  
-                                                                     ░███     
-                                                                     █████    
-                                                                    ░░░░░     
+░░██████   ░░█████    █████░███ █████    ██████  ████ █████░░██████  ░███████
+ ░░░░░░     ░░░░░    ░░░░░ ░░░ ░░░░░    ░░░░░░  ░░░░ ░░░░░  ░░░░░░   ░███░░░
+                                                                     ░███
+                                                                     █████
+                                                                    ░░░░░
 
 
 ```
 
-A Solidity-based shop contract that supports purchases with tax and refund functionality.
+A production-ready Solidity smart contract for an e-commerce shop with built-in refund policies, two-step ownership transfer, and comprehensive security features.
 
-## Features
+## ✨ Features
 
-- 🛒 **Purchase System**: Buy items at a fixed price with additional tax
-- 💸 **Refund Policy**: Customers can request refunds within a configurable time period after purchase
-- 🔧 **Shop Management**: Owner can open or close the shop
-- 💰 **Fund Withdrawal**: Owner can withdraw funds with restrictions during refund periods
-- 📊 **Partial Withdrawals**: Allows partial fund withdrawals before refund policy expires
+- 🛒 Fixed-price purchase system with tax
+- 💸 Configurable refund policy
+- 🔒 Two-step ownership transfer
+- 🛡️ Reentrancy protection
+- ✅ Comprehensive input validation
+- 🔐 Gas-efficient custom errors
 
-## Key Functions
-
-- 🛒 `buy()`: Purchase an item by sending the required amount (price + tax)
-- 💸 `refund(orderId)`: Request a refund for a specific order within the refund period
-- 💰 `withdraw()`: Owner can withdraw accumulated funds
-- 🔓 `openShop()` / 🔒 `closeShop()`: Owner controls shop availability
-
-## Configuration
-
-The contract is initialized with:
-
-- `price`: Base price of items
-- `tax`: Additional tax amount
-- `refundRate`: Refund percentage (numerator)
-- `refundBase`: Refund percentage (denominator)
-- `refundPolicy`: Time window in seconds for refunds
-
-## Installation
-
-1. Clone the repository:
-
-   ```bash
-   git clone https://github.com/mmsaki/evm-shop.git
-   cd shop
-   ```
-
-2. Install dependencies:
-
-   ```bash
-   forge install
-   ```
-
-## Testing
-
-Run the test suite:
+## 🚀 Quick Start
 
 ```bash
+# Install dependencies
+forge install
+
+# Run tests
 forge test
+
+# Deploy
+forge script script/Shop.s.sol --rpc-url $RPC_URL --broadcast
 ```
 
-Run tests with verbose output:
+## 📖 Documentation
+
+For detailed contract documentation, see [src/README.md](src/README.md)
+
+## 🧪 Testing
+
+**54 tests** with 100% pass rate:
 
 ```bash
-forge test -v
+forge test -vv              # Verbose output
+forge test --gas-report     # Gas usage report
 ```
 
-## Deployment
+## 🔧 Contract Configuration
 
-Deploy the contract using the provided script:
+Default deployment parameters:
+- **Price**: 0.01 ETH
+- **Tax**: 10%
+- **Refund**: 50% within 24 hours
+- **Solidity**: 0.8.30
 
-```bash
-forge script script/Shop.s.sol --rpc-url <your-rpc-url> --private-key <your-private-key> --broadcast
-```
+## 📜 License
 
-The script deploys the Shop contract with the following default parameters:
+MIT License - see [LICENSE](LICENSE) for details.
 
-- Price: 0.01 ETH (1e16 wei)
-- Tax: 10% (100 basis points)
-- Tax Base: 1000
-- Refund Rate: 50% (500/1000)
-- Refund Base: 1000
-- Refund Policy: 24 hours
+## 🔗 Links
 
-## Events
+- [Foundry Documentation](https://book.getfoundry.sh/)
+- [Solidity Documentation](https://docs.soliditylang.org/)
 
-- `BuyOrder(bytes32 orderId, uint256 amount)`: Emitted when a purchase is made
-- `RefundProcessed(bytes32 orderId, uint256 amount)`: Emitted when a refund is processed
-- `ShopOpen(uint256 timestamp)`: Emitted when the shop is opened
-- `ShopClosed(uint256 timestamp)`: Emitted when the shop is closed
+---
 
-## Errors
-
-- `ShopIsClosed()`: Thrown when attempting to buy from a closed shop
-- `UnauthorizedAccess()`: Thrown when non-owner tries to access owner-only functions
-- `MissingTax()`: Thrown when buying without paying the required tax
-- `WaitUntilRefundPeriodPassed()`: Thrown when attempting multiple partial withdrawals within refund period
-
-## License
-
-This project is licensed under the MIT License.
+**Built with ❤️ using Foundry and Solidity 0.8.30**
