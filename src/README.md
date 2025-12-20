@@ -16,6 +16,7 @@ Comprehensive documentation for the Shop smart contract implementation.
 ## Overview
 
 The Shop contract implements a secure e-commerce system with:
+
 - Fixed-price purchases with tax calculation
 - Time-bound refund policy
 - Two-step ownership transfer mechanism
@@ -100,6 +101,7 @@ new Shop(
 ```
 
 **Calculations:**
+
 - Total cost: `price + (price * tax / taxBase)` = 0.011 ETH
 - Refund amount: `price * refundRate / refundBase` = 0.005 ETH
 
@@ -112,16 +114,19 @@ new Shop(
 Purchase an item by sending exact ETH amount.
 
 **Requirements:**
+
 - Shop must be open
 - Must send exact `price + tax` amount
 
 **State Changes:**
+
 - Increments buyer's nonce
 - Creates order with unique ID
 - Updates `lastBuy` timestamp
 - Emits `BuyOrder` event
 
 **Reverts:**
+
 - `ShopIsClosed()` - Shop closed
 - `MissingTax()` - Sent exact price without tax
 - `InsuffientAmount()` - Sent less than required
@@ -140,16 +145,19 @@ shop.buy{value: expectedTotal}();
 Request a refund for a previous purchase.
 
 **Requirements:**
+
 - Caller must be original buyer
 - Must be within refund window
 - Order must not already be refunded
 
 **State Changes:**
+
 - Marks order as refunded
 - Transfers ETH to buyer
 - Emits `RefundProcessed` event
 
 **Reverts:**
+
 - `InvalidRefundBenefiary()` - Not buyer or order doesn't exist
 - `RefundPolicyExpired()` - Outside refund window
 - `DuplicateRefundClaim()` - Already refunded
@@ -167,6 +175,7 @@ shop.refund(orderId);
 Withdraw accumulated funds with refund period protection.
 
 **Logic:**
+
 ```
 IF lastBuy + REFUND_POLICY < block.timestamp:
     // Full withdrawal (no recent purchases)
@@ -182,6 +191,7 @@ ELSE:
 ```
 
 **Reverts:**
+
 - `UnauthorizedAccess()` - Not owner
 - `WaitUntilRefundPeriodPassed()` - Second partial withdrawal attempt
 - `TransferFailed()` - ETH transfer failed
@@ -191,6 +201,7 @@ ELSE:
 Open the shop for purchases.
 
 **State Changes:**
+
 - Sets `shopClosed = false`
 - Emits `ShopOpen` event (only if was closed)
 
@@ -199,6 +210,7 @@ Open the shop for purchases.
 Close the shop to prevent new purchases.
 
 **State Changes:**
+
 - Sets `shopClosed = true`
 - Emits `ShopClosed` event
 
@@ -209,10 +221,12 @@ Close the shop to prevent new purchases.
 **Step 1 of 2**: Initiate ownership transfer.
 
 **Requirements:**
+
 - `newOwner` cannot be zero address
 - `newOwner` cannot be current owner
 
 **State Changes:**
+
 - Sets `pendingOwner = newOwner`
 - Emits `OwnershipTransferInitiated` event
 
@@ -221,10 +235,12 @@ Close the shop to prevent new purchases.
 **Step 2 of 2**: Accept pending ownership transfer.
 
 **Requirements:**
+
 - Caller must be `pendingOwner`
 - `pendingOwner` must not be zero address
 
 **State Changes:**
+
 - Sets `owner = pendingOwner`
 - Resets `pendingOwner = address(0)`
 - Emits `OwnershipTransferred` event
@@ -234,9 +250,11 @@ Close the shop to prevent new purchases.
 Cancel a pending ownership transfer.
 
 **Requirements:**
+
 - Must have pending transfer
 
 **State Changes:**
+
 - Resets `pendingOwner = address(0)`
 - Emits `OwnershipTransferInitiated(owner, address(0))`
 
@@ -276,7 +294,9 @@ error TransferFailed();                  // ETH transfer failed
 ### Implemented Protections
 
 #### 1. Reentrancy Protection
+
 Follows checks-effects-interactions (CEI) pattern:
+
 ```solidity
 // ✅ Good: State changes before external call
 refunds[orderId] = true;
@@ -285,7 +305,9 @@ if (!success) revert TransferFailed();
 ```
 
 #### 2. Two-Step Ownership Transfer
+
 Prevents accidental ownership loss:
+
 ```solidity
 // Step 1: Owner proposes
 shop.transferOwnership(payable(newOwner));
@@ -295,7 +317,9 @@ shop.acceptOwnership();
 ```
 
 #### 3. Input Validation
+
 All constructor parameters validated:
+
 ```solidity
 if (price == 0) revert InvalidConstructorParameters();
 if (taxBase == 0) revert InvalidConstructorParameters();
@@ -304,21 +328,27 @@ if (tax > taxBase) revert InvalidConstructorParameters();
 ```
 
 #### 4. Custom Errors
+
 Gas-efficient error handling (~50% cheaper than `require()`):
+
 ```solidity
 // ❌ Old: require(success, "Transfer failed");  // ~1,500 gas
 // ✅ New: if (!success) revert TransferFailed(); // ~300 gas
 ```
 
 #### 5. Exact Payment Requirement
+
 Prevents overpayment fund locking:
+
 ```solidity
 if (msg.value < expectedTotal) revert InsuffientAmount();
 if (msg.value > expectedTotal) revert ExcessAmount();
 ```
 
 #### 6. Modern Transfer Pattern
+
 Uses `.call()` instead of deprecated `.transfer()`:
+
 ```solidity
 (bool success,) = payable(recipient).call{value: amount}("");
 if (!success) revert TransferFailed();
@@ -375,6 +405,7 @@ shop.acceptOwnership();
 ### Edge Cases
 
 #### Refund Timing
+
 ```solidity
 // Purchase at T=0
 shop.buy{value: 0.011 ether}();
@@ -393,6 +424,7 @@ shop.refund(orderId); // Reverts: RefundPolicyExpired
 ```
 
 #### Withdrawal Restrictions
+
 ```solidity
 // Scenario 1: Recent purchase (within 24h)
 shop.buy{value: 0.011 ether}();
@@ -406,6 +438,7 @@ shop.withdraw(); // ✅ Works (transfers 0 ETH)
 ```
 
 #### Multiple Purchases
+
 ```solidity
 // User can make multiple purchases
 shop.buy{value: 0.011 ether}(); // nonce = 0, orderId = hash(user, 0)
@@ -425,38 +458,23 @@ shop.refund(orderId0); // ❌ Reverts: DuplicateRefundClaim
 
 The contract includes 54 comprehensive tests covering:
 
-- ✅ Purchase flow (valid/invalid amounts)
-- ✅ Refund system (timing, authorization, duplicates)
-- ✅ Withdrawal system (full/partial, restrictions)
-- ✅ Shop state management
-- ✅ Ownership transfer (all scenarios)
-- ✅ Constructor validation (all parameters)
-- ✅ Access control
-- ✅ Event emissions
-- ✅ Edge cases
+- [x] Purchase flow (valid/invalid amounts)
+- [x] Refund system (timing, authorization, duplicates)
+- [x] Withdrawal system (full/partial, restrictions)
+- [x] Shop state management
+- [x] Ownership transfer (all scenarios)
+- [x] Constructor validation (all parameters)
+- [x] Access control
+- [x] Event emissions
+- [x] Edge cases
 
 Run tests:
+
 ```bash
 forge test -vv                               # All tests with output
 forge test --match-test test_refund -vvvv    # Specific test with traces
 forge test --gas-report                      # Gas usage report
 ```
-
-## Gas Optimization
-
-| Operation | Approximate Gas Cost |
-|-----------|---------------------|
-| Deployment | ~1,400,000 gas |
-| First purchase | ~140,000 gas |
-| Subsequent purchase | ~120,000 gas |
-| Refund | ~175,000 gas |
-| Withdrawal (full) | ~55,000 gas |
-| Ownership transfer | ~42,000 gas |
-
-**Custom Error Savings:**
-- `require()` with string: ~1,500 gas
-- Custom error: ~300 gas
-- **Savings: ~1,200 gas per error** 💰
 
 ---
 
