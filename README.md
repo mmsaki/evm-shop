@@ -18,9 +18,36 @@
 
 **A trust-minimized e-commerce smart contract with buyer protections, flexible seller withdrawals.**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+![GitHub License](https://img.shields.io/github/license/mmsaki/evm-shop)
+
 [![Solidity: 0.8.30](https://img.shields.io/badge/Solidity-0.8.30-blue.svg)](https://soliditylang.org/)
-[![Tests: 74/74](https://img.shields.io/badge/Tests-74%2F74-brightgreen.svg)]()
+[![Tests](https://github.com/mmsaki/evm-shop/actions/workflows/test.yml/badge.svg)](https://github.com/mmsaki/evm-shop/actions/workflows/test.yml)
+
+## 🔗 Resources
+
+- [Buyer's Guide](BUYER_GUIDE.md) - Complete guide for customers
+- [Owner's Guide](OWNER_GUIDE.md) - Complete guide for shop operators
+
+## 🛠️ Development
+
+### Build
+
+```bash
+forge build
+```
+
+### Test
+
+```bash
+# All tests
+forge test
+
+# Specific test
+forge test --match-test test_accounting_confirmed_amount_includes_tax
+
+# With gas report
+forge test --gas-report
+```
 
 ### 🚀 Deploy config
 
@@ -35,8 +62,6 @@ new Shop(
     24 hours    // REFUND_POLICY: 24-hour refund window
 );
 ```
-
-## 🌟 Features
 
 ### As a Buyer
 
@@ -112,34 +137,6 @@ error TransferFailed();
 error OrderAlreadyConfirmed();
 error InvalidOrder();
 ```
-
-## 🛠️ Development
-
-### Build
-
-```bash
-forge build
-```
-
-### Test
-
-```bash
-# All tests
-forge test
-
-# Specific test
-forge test --match-test test_accounting_confirmed_amount_includes_tax
-
-# With gas report
-forge test --gas-report
-```
-
-## 🔗 Resources
-
-### Documentation
-
-- [Buyer's Guide](BUYER_GUIDE.md) - Complete guide for customers
-- [Owner's Guide](OWNER_GUIDE.md) - Complete guide for shop operators
 
 ### Development
 
