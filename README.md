@@ -144,8 +144,8 @@ error InvalidOrder();
 
 ## 💬 Support
 
-- **Issues:** [GitHub Issues](https://github.com/yourusername/shop/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/yourusername/shop/discussions)
+- **Issues:** [GitHub Issues](https://github.com/mmsaki/evm-shop/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/mmsaki/evm-shop/discussions)
 
 **Built with ❤️ using Foundry**
 
