@@ -22,13 +22,16 @@
 ## 🚀 Quick Start
 
 ### Your Shop Parameters (Immutable)
+
 Once deployed, these CANNOT be changed:
+
 - **PRICE:** Base price per item
 - **TAX:** Tax percentage (in basis points)
 - **REFUND_RATE:** 50% (basis points: 500/1000)
 - **REFUND_POLICY:** 24 hours (86400 seconds)
 
 ### Your Capabilities
+
 - ✅ Open/close the shop
 - ✅ Withdraw funds (with time-based restrictions)
 - ✅ Transfer ownership (2-step process)
@@ -37,7 +40,9 @@ Once deployed, these CANNOT be changed:
 - ❌ Cannot force withdrawals during refund period
 
 ### The Core Trade-Off
+
 **You choose between two modes:**
+
 1. **Growth Mode:** Keep shop open → More sales, locked liquidity
 2. **Liquidity Mode:** Close shop → Access funds, no new sales
 
@@ -52,17 +57,20 @@ shop.openShop();
 ```
 
 **When to open:**
+
 - After deployment (shop starts closed)
 - After a withdrawal cycle
 - When ready to accept new orders
 
 **What happens:**
+
 - Shop status changes to open
 - Buyers can place orders
 - `lastBuy` timer starts/continues
 - Emits: `ShopOpen(timestamp)`
 
 **Important:**
+
 - Only you (owner) can open the shop
 - Opening doesn't affect existing orders
 - Buyers with active refund windows keep their rights
@@ -74,12 +82,14 @@ shop.closeShop();
 ```
 
 **When to close:**
+
 - When planning a full withdrawal
 - During maintenance or inventory updates
 - When you need liquidity access
 - End of business cycle (e.g., weekly/monthly)
 
 **What happens:**
+
 - Shop status changes to closed
 - New orders are blocked
 - Existing orders remain valid
@@ -87,7 +97,9 @@ shop.closeShop();
 - Emits: `ShopClosed(timestamp)`
 
 **Strategic uses:**
+
 1. **Planned Withdrawal:**
+
    ```
    Friday 6 PM: Close shop
    Saturday: Wait for lastBuy + 24 hours
@@ -96,6 +108,7 @@ shop.closeShop();
    ```
 
 2. **Emergency Pause:**
+
    ```
    Issue detected: Close shop immediately
    Fix issue
@@ -103,6 +116,7 @@ shop.closeShop();
    ```
 
 3. **Inventory Maintenance:**
+
    ```
    Week 1-4: Shop open
    Weekend: Close for "restocking"
@@ -140,21 +154,25 @@ if (block.timestamp > lastBuy + refundPolicy) {
 ### Full Withdrawal Mode
 
 **Requirements:**
+
 - More than 24 hours since `lastBuy`
 - No recent orders
 
 **What you can withdraw:**
+
 ```
 withdrawable = entire contract balance
 ```
 
 **What happens:**
+
 - All funds transferred to you
 - `totalConfirmedAmount` reset to 0
 - `partialWithdrawal` flag reset to false
 - Contract balance becomes 0
 
 **Example:**
+
 ```solidity
 // Last order was Friday 10 PM
 // Now it's Sunday 10 PM (48 hours later)
@@ -165,10 +183,12 @@ shop.withdraw();
 ### Partial Withdrawal Mode
 
 **Requirements:**
+
 - Within 24 hours of `lastBuy`
 - Haven't done partial withdrawal yet this period
 
 **What you can withdraw:**
+
 ```
 confirmedAmount = totalConfirmedAmount (locked!)
 unconfirmedAmount = balance - confirmedAmount
@@ -176,12 +196,14 @@ withdrawable = unconfirmedAmount × 50%
 ```
 
 **What happens:**
+
 - Only 50% of unconfirmed amounts transferred
 - Confirmed amounts stay locked
 - `partialWithdrawal` flag set to true
 - Cannot withdraw again until full withdrawal mode
 
 **Example:**
+
 ```solidity
 // Contract has 10 ETH
 // - 6 ETH confirmed (locked)
@@ -205,6 +227,7 @@ if (partialWithdrawal) {
 ```
 
 **Reset conditions:**
+
 - Automatically resets in full withdrawal mode
 - Cannot be manually reset
 - One partial withdrawal per refund period
@@ -265,17 +288,20 @@ Month 4: Need major capital
 ```
 
 **Pros:**
+
 - ✅ Maximum revenue (always open)
 - ✅ Builds customer trust (always available)
 - ✅ Large lump sum withdrawals
 - ✅ Simple to manage
 
 **Cons:**
+
 - ❌ Liquidity locked for long periods
 - ❌ Must plan for capital needs
 - ❌ Risk if you need emergency funds
 
 **Best for owners who:**
+
 - Have other income sources
 - Can wait for returns
 - Focus on growth over cash flow
@@ -306,17 +332,20 @@ Monthly: ~20 ETH withdrawn
 ```
 
 **Pros:**
+
 - ✅ Regular weekly income
 - ✅ Predictable cash flow
 - ✅ Shop still feels "always available"
 - ✅ Easy to plan around
 
 **Cons:**
+
 - ❌ Lose weekend sales
 - ❌ Customers notice closure pattern
 - ❌ Less total revenue than full-time
 
 **Best for owners who:**
+
 - Need regular income
 - Have weekly expenses
 - Can plan business around schedule
@@ -347,18 +376,21 @@ Busy week:
 ```
 
 **Pros:**
+
 - ✅ Maximizes revenue during busy times
 - ✅ Takes advantage of slow periods
 - ✅ Flexible cash flow
 - ✅ Responds to market conditions
 
 **Cons:**
+
 - ❌ Requires active management
 - ❌ Unpredictable withdrawal schedule
 - ❌ Need to monitor lastBuy timing
 - ❌ More complex planning
 
 **Best for owners who:**
+
 - Can actively manage the shop
 - Have variable capital needs
 - Understand the timing mechanics
@@ -389,18 +421,21 @@ Month 6: Ready to scale
 ```
 
 **Pros:**
+
 - ✅ Rapid growth potential
 - ✅ Compounds returns
 - ✅ Shows commitment to buyers
 - ✅ Builds large treasury
 
 **Cons:**
+
 - ❌ No regular income
 - ❌ High risk if business fails
 - ❌ Requires outside income source
 - ❌ Long wait for liquidity
 
 **Best for owners who:**
+
 - Have outside funding
 - Believe in long-term vision
 - Can delay gratification
@@ -413,6 +448,7 @@ Month 6: Ready to scale
 ### Understanding Your Cash Flow
 
 #### Revenue Calculation
+
 ```
 Per Order Revenue = PRICE + TAX
 Example: 0.01 ETH + 0.001 ETH = 0.011 ETH
@@ -425,6 +461,7 @@ Monthly Revenue = ~3.3 ETH
 #### Withdrawal Projections
 
 **Scenario A: Always Open**
+
 ```
 Month 1:
 - Revenue: 3.3 ETH
@@ -442,6 +479,7 @@ Month 6 Closure:
 ```
 
 **Scenario B: Weekly Closures**
+
 ```
 Month 1:
 - Week 1: 0.77 ETH → Withdraw 0.77 ETH
@@ -456,6 +494,7 @@ Months 1-6:
 ```
 
 **Comparison:**
+
 | Strategy | Month 6 Total | Liquidity | Revenue Lost |
 |----------|---------------|-----------|--------------|
 | Always Open | 19.8 ETH | Low initially, high at withdrawal | 0 ETH (no closures) |
@@ -464,6 +503,7 @@ Months 1-6:
 ### Tax & Accounting
 
 **On-Chain Revenue Tracking:**
+
 ```solidity
 // Total revenue ever
 uint256 lifetimeRevenue = 0;
@@ -478,6 +518,7 @@ uint256 withdrawn = lifetimeRevenue - currentBalance;
 ```
 
 **For Tax Purposes:**
+
 - Track all withdrawals (timestamps + amounts)
 - Track refunds processed
 - Calculate net revenue
@@ -486,6 +527,7 @@ uint256 withdrawn = lifetimeRevenue - currentBalance;
 ### Growth Metrics
 
 **Track these KPIs:**
+
 1. **Order Count:** `shop.nonces(buyers)` for each buyer
 2. **Total Revenue:** Sum of all orders
 3. **Refund Rate:** (Refunds / Orders) × 100%
@@ -494,6 +536,7 @@ uint256 withdrawn = lifetimeRevenue - currentBalance;
 6. **Return Rate:** Regular buyers placing multiple orders
 
 **Good Benchmarks:**
+
 - Refund rate < 10% (shows happy customers)
 - Confirmation rate > 70% (shows trust)
 - Return rate > 30% (shows loyalty)
@@ -513,11 +556,13 @@ shop.transferOwnership(payable(newOwnerAddress));
 ```
 
 **What happens:**
+
 - New owner set as `pendingOwner`
 - You remain the owner
 - Emits: `OwnershipTransferInitiated(you, newOwner)`
 
 **Safety check:**
+
 - Cannot transfer to zero address
 - Cannot transfer to yourself
 
@@ -528,12 +573,14 @@ shop.acceptOwnership();
 ```
 
 **What happens:**
+
 - Caller becomes new owner
 - `pendingOwner` reset to zero
 - Previous owner loses all privileges
 - Emits: `OwnershipTransferred(previousOwner, newOwner)`
 
 **Requirements:**
+
 - Must be called by `pendingOwner`
 - Cannot be called by anyone else
 
@@ -546,14 +593,17 @@ shop.cancelOwnershipTransfer();
 ```
 
 **What happens:**
+
 - `pendingOwner` reset to zero
 - You remain owner
 - Transfer process canceled
 
 ### Transfer Best Practices
 
-#### Before Transfer:
+#### Before Transfer
+
 1. **Withdraw all funds**
+
    ```solidity
    // Close shop
    shop.closeShop();
@@ -574,14 +624,17 @@ shop.cancelOwnershipTransfer();
    - Assure continuation of service
    - Provide new owner contact
 
-#### During Transfer:
+#### During Transfer
+
 1. **Verify new owner address** (multiple times!)
 2. **Initiate transfer**
 3. **Wait for new owner to accept**
 4. **Verify transfer completed**
 
-#### After Transfer:
+#### After Transfer
+
 1. **New owner tests access:**
+
    ```solidity
    // Try owner functions
    shop.openShop();
@@ -589,6 +642,7 @@ shop.cancelOwnershipTransfer();
    ```
 
 2. **Previous owner verifies loss of access:**
+
    ```solidity
    // Should revert
    shop.openShop(); // → UnauthorizedAccess
@@ -597,6 +651,7 @@ shop.cancelOwnershipTransfer();
 ### Transfer Scenarios
 
 **Scenario 1: Selling the Business**
+
 ```
 1. Negotiate with buyer
 2. Agree on handover date
@@ -607,6 +662,7 @@ shop.cancelOwnershipTransfer();
 ```
 
 **Scenario 2: Multi-Sig Upgrade**
+
 ```
 1. Deploy multi-sig wallet
 2. Transfer ownership to multi-sig
@@ -615,6 +671,7 @@ shop.cancelOwnershipTransfer();
 ```
 
 **Scenario 3: Business Partner Addition**
+
 ```
 1. Create shared ownership contract
 2. Transfer to shared contract
@@ -629,6 +686,7 @@ shop.cancelOwnershipTransfer();
 ### Daily Operations
 
 **Morning Routine:**
+
 1. Check shop status: `shop.shopClosed()`
 2. Check recent orders: Look for new `BuyOrder` events
 3. Check refund requests: Look for `RefundProcessed` events
@@ -636,6 +694,7 @@ shop.cancelOwnershipTransfer();
 5. Calculate current locked/unlocked amounts
 
 **Evening Routine:**
+
 1. Review day's sales
 2. Check if partial withdrawal available
 3. Plan next day/week strategy
@@ -645,16 +704,19 @@ shop.cancelOwnershipTransfer();
 ### Weekly Planning
 
 **Monday:**
+
 - Review last week's metrics
 - Plan withdrawal strategy
 - Set goals for the week
 
 **Friday:**
+
 - Decide: Keep open or close for withdrawal?
 - If closing: Prepare communication
 - If staying open: Plan partial withdrawal
 
 **Sunday:**
+
 - Execute planned withdrawals
 - Review cash flow
 - Prepare for new week
@@ -662,6 +724,7 @@ shop.cancelOwnershipTransfer();
 ### Security Practices
 
 **Protect Your Private Key:**
+
 - ✅ Use hardware wallet
 - ✅ Never share private key
 - ✅ Use multi-sig for large operations
@@ -669,6 +732,7 @@ shop.cancelOwnershipTransfer();
 - ❌ Never store key on internet-connected device
 
 **Smart Contract Interactions:**
+
 - ✅ Always verify contract address
 - ✅ Double-check function parameters
 - ✅ Test on testnet first
@@ -676,6 +740,7 @@ shop.cancelOwnershipTransfer();
 - ❌ Never rush transactions
 
 **Business Operations:**
+
 - ✅ Keep detailed records
 - ✅ Monitor for suspicious activity
 - ✅ Respond quickly to buyer concerns
@@ -685,6 +750,7 @@ shop.cancelOwnershipTransfer();
 ### Customer Service
 
 **Even though it's "trustless":**
+
 - Communicate clearly about terms
 - Respond to questions (off-chain)
 - Build brand reputation
@@ -692,6 +758,7 @@ shop.cancelOwnershipTransfer();
 - Be transparent about withdrawal schedules
 
 **Reputation Building:**
+
 - Consistent uptime
 - Honor all refund requests (automatic anyway)
 - Quick delivery of services
@@ -707,6 +774,7 @@ shop.cancelOwnershipTransfer();
 **Problem:** Funds locked during busy periods
 
 **Mitigation:**
+
 1. Keep emergency funds outside contract
 2. Plan withdrawal windows in advance
 3. Do partial withdrawals for critical needs
@@ -718,6 +786,7 @@ shop.cancelOwnershipTransfer();
 **Problem:** Bugs or vulnerabilities (always possible)
 
 **Mitigation:**
+
 1. Contract has been tested (74 tests)
 2. Use at your own risk
 3. Start with small amounts
@@ -729,12 +798,14 @@ shop.cancelOwnershipTransfer();
 **Problem:** Buyers could abuse refund system
 
 **Reality:**
+
 - Buyers only get 50% back (they lose 50%)
 - 24-hour window is strict
 - One refund per order
 - Economic disincentive to abuse
 
 **Mitigation:**
+
 - Track refund rates
 - If too high, consider business model
 - Cannot prevent refunds (by design)
@@ -745,6 +816,7 @@ shop.cancelOwnershipTransfer();
 **Problem:** Private key stolen
 
 **Immediate Actions:**
+
 1. Transfer ownership to secure address (if possible)
 2. Withdraw all funds to secure address
 3. Close shop
@@ -752,6 +824,7 @@ shop.cancelOwnershipTransfer();
 5. Deploy new contract if necessary
 
 **Prevention:**
+
 - Use hardware wallet
 - Multi-sig for large operations
 - Regular security audits of key management
@@ -762,6 +835,7 @@ shop.cancelOwnershipTransfer();
 **Problem:** ETH price changes affect real-world value
 
 **Mitigation:**
+
 1. Regular withdrawals reduce exposure
 2. Convert to stablecoin immediately if needed
 3. Price items accounting for volatility
@@ -774,53 +848,71 @@ shop.cancelOwnershipTransfer();
 ### Owner Functions
 
 #### `withdraw()`
+
 Withdraws available funds based on time since lastBuy.
+
 ```solidity
 function withdraw() public onlyOwner
 ```
+
 - **Full mode:** Withdraws everything (24+ hours since lastBuy)
 - **Partial mode:** Withdraws 50% of unconfirmed, once per period
 - **Reverts if:** Already did partial withdrawal this period
 
 #### `openShop()`
+
 Opens the shop for orders.
+
 ```solidity
 function openShop() public onlyOwner
 ```
+
 - **Emits:** `ShopOpen(timestamp)` (only if was closed)
 - **Effect:** Sets `shopClosed = false`
 
 #### `closeShop()`
+
 Closes the shop, blocking new orders.
+
 ```solidity
 function closeShop() public onlyOwner
 ```
+
 - **Emits:** `ShopClosed(timestamp)`
 - **Effect:** Sets `shopClosed = true`
 
 #### `transferOwnership(newOwner)`
+
 Initiates ownership transfer.
+
 ```solidity
 function transferOwnership(address payable newOwner) public onlyOwner
 ```
+
 - **Requires:** newOwner ≠ 0x0, newOwner ≠ current owner
 - **Emits:** `OwnershipTransferInitiated(owner, newOwner)`
 - **Effect:** Sets `pendingOwner = newOwner`
 
 #### `acceptOwnership()`
+
 Accepts pending ownership transfer.
+
 ```solidity
 function acceptOwnership() public
 ```
+
 - **Requires:** msg.sender == pendingOwner
 - **Emits:** `OwnershipTransferred(previousOwner, newOwner)`
 - **Effect:** Transfers ownership, resets pendingOwner
 
 #### `cancelOwnershipTransfer()`
+
 Cancels pending ownership transfer.
+
 ```solidity
 function cancelOwnershipTransfer() public onlyOwner
 ```
+
 - **Requires:** pendingOwner ≠ 0x0
 - **Emits:** `OwnershipTransferInitiated(owner, 0x0)`
 - **Effect:** Resets `pendingOwner = 0x0`
@@ -873,34 +965,45 @@ uint256 withdrawable = (lastBuy + 24 hours < now) ? balance : unconfirmed * 50 /
 ## ❓ Frequently Asked Questions
 
 ### **Q: Can I change the price after deployment?**
+
 **A:** No. PRICE, TAX, REFUND_RATE, and REFUND_POLICY are immutable. Plan carefully before deployment.
 
 ### **Q: What if I need funds urgently but orders keep coming?**
+
 **A:** Close the shop immediately. Wait 24 hours after the last order, then withdraw everything.
 
 ### **Q: Can I prevent buyers from refunding?**
+
 **A:** No. The 24-hour refund window is guaranteed by the contract. This is a feature, not a bug - it builds trust.
 
 ### **Q: What happens if I lose my private key?**
+
 **A:** All funds are permanently locked. There is NO recovery mechanism. Use hardware wallet and backups.
 
 ### **Q: Can I deploy multiple shops?**
+
 **A:** Yes! Deploy as many contracts as you want. Each is independent with its own balance and rules.
 
 ### **Q: How do I handle taxes on crypto income?**
+
 **A:** Consult a tax professional. Generally, income when withdrawn is taxable. Keep detailed records of all withdrawals.
 
 ### **Q: What if a buyer disputes after confirming?**
+
 **A:** They can still refund within 24 hours. Confirmation doesn't waive their refund rights - it just helps your cash flow timing.
 
 ### **Q: Can I do multiple partial withdrawals?**
+
 **A:** No. Only ONE partial withdrawal per refund period. After that, you must wait for full withdrawal mode.
 
 ### **Q: What if I transfer ownership by mistake?**
+
 **A:** You can cancel if the new owner hasn't accepted yet. If they accepted, ownership is transferred permanently.
 
 ### **Q: How do I calculate my real profit?**
+
 **A:**
+
 ```
 Total Revenue = Sum of all orders
 Total Refunded = Sum of all refunds
@@ -909,13 +1012,17 @@ Net Profit = Gross Profit - Gas Costs - Other Expenses
 ```
 
 ### **Q: Should I keep the shop always open or close regularly?**
+
 **A:** Depends on your needs:
+
 - Need regular income? → Close weekly
 - Building long-term? → Stay open, do quarterly closures
 - Flexible? → Opportunistic approach
 
 ### **Q: What's the optimal withdrawal frequency?**
+
 **A:** There's no universal answer. Consider:
+
 - Your capital needs
 - Gas costs (frequent withdrawals = more gas)
 - Customer perception (too many closures = unreliable)
@@ -926,18 +1033,21 @@ Net Profit = Gross Profit - Gas Costs - Other Expenses
 ## 📞 Support & Resources
 
 ### Contract Information
+
 - **Source Code:** [GitHub Repository]
 - **Solidity Version:** 0.8.30
 - **License:** MIT
 - **Test Coverage:** 74 tests, 100% pass rate
 
 ### Owner Dashboard (Recommended Tools)
+
 - **Etherscan:** Monitor transactions and events
 - **Dune Analytics:** Track revenue and metrics
 - **Safe (Gnosis):** Multi-sig wallet for security
 - **Hardware Wallet:** Ledger or Trezor for key storage
 
 ### Community
+
 - **Discord:** [Community link]
 - **Twitter:** [Updates and announcements]
 - **Documentation:** [Full technical docs]
@@ -962,6 +1072,7 @@ Your private key is your business. Lose it = lose everything. No recovery possib
 
 **5. Adapt Your Strategy**
 Different stages of business need different approaches:
+
 - **Early:** Prioritize growth, accept locked funds
 - **Established:** Optimize for cash flow, regular withdrawals
 - **Scaling:** Build large treasury, strategic big withdrawals
@@ -969,6 +1080,7 @@ Different stages of business need different approaches:
 ### Your Business Model
 
 This contract enforces a specific model:
+
 - 24-hour refund guarantee (50% back)
 - Time-locked withdrawals during active periods
 - Full customer protection
@@ -976,6 +1088,7 @@ This contract enforces a specific model:
 **This is a feature, not a limitation.**
 
 It creates a trust-minimized marketplace where:
+
 - Buyers feel safe
 - You can't exit scam
 - Game theory aligns incentives
@@ -984,6 +1097,7 @@ It creates a trust-minimized marketplace where:
 ### Long-Term Vision
 
 Think of locked liquidity as:
+
 - Working capital
 - Customer trust fund
 - Growth investment
