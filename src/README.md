@@ -6,12 +6,10 @@ Comprehensive technical documentation for the Shop smart contract implementation
 
 - [Overview](#overview)
 - [Architecture](#architecture)
-- [Constructor Parameters](#constructor-parameters)
 - [Functions](#functions)
 - [Events](#events)
 - [Errors](#errors)
 - [Security](#security)
-- [Usage Examples](#usage-examples)
 - [Testing](#testing)
 
 ## Overview
@@ -110,6 +108,7 @@ new Shop(
 ```
 
 **Calculations:**
+
 - Total cost: `price + (price * tax / taxBase)` = 0.011 ETH
 - Refund amount: `totalPaid * refundRate / refundBase` = 0.0055 ETH (50% of total)
 
@@ -122,16 +121,19 @@ new Shop(
 Purchase an item by sending exact ETH amount.
 
 **Requirements:**
+
 - Shop must be open
 - Must send exact `price + tax` amount
 
 **State Changes:**
+
 - Increments buyer's nonce
 - Creates order with **total amount (PRICE + TAX)** ⭐ UPDATED
 - Updates `lastBuy` timestamp
 - Emits `BuyOrder` event
 
 **Reverts:**
+
 - `ShopIsClosed()` - Shop closed
 - `MissingTax()` - Sent exact price without tax
 - `InsuffientAmount()` - Sent less than required
@@ -150,21 +152,25 @@ shop.buy{value: expectedTotal}();
 Confirm receipt of service or product.
 
 **Purpose:**
+
 - Signal to owner that service was received
 - Allows owner faster access to funds (after refund period)
 - Buyer can still refund within 24 hours!
 
 **Requirements:**
+
 - Caller must be original buyer
 - Order must exist
 - Must not already be confirmed
 
 **State Changes:**
+
 - Sets `order.confirmed = true`
 - Adds `order.amount` to `totalConfirmedAmount`
 - Emits `OrderConfirmed` event
 
 **Reverts:**
+
 - `InvalidOrder()` - Order doesn't exist
 - `InvalidRefundBenefiary()` - Not the buyer
 - `OrderAlreadyConfirmed()` - Already confirmed
@@ -179,17 +185,20 @@ shop.confirmReceived(orderId);
 Request a refund for a previous purchase.
 
 **Requirements:**
+
 - Caller must be original buyer
 - Must be within refund window (24 hours)
 - Order must not already be refunded
 
 **State Changes:**
+
 - Marks order as refunded
 - If confirmed, **decreases `totalConfirmedAmount`** ⭐ UPDATED
 - Transfers **50% of total amount** (includes TAX) ⭐ UPDATED
 - Emits `RefundProcessed` event
 
 **Reverts:**
+
 - `InvalidRefundBenefiary()` - Not buyer or order doesn't exist
 - `RefundPolicyExpired()` - Outside refund window
 - `DuplicateRefundClaim()` - Already refunded
@@ -233,6 +242,7 @@ Withdraw accumulated funds with refund period protection.
 ```
 
 **Full Withdrawal Mode:**
+
 ```solidity
 // No orders in last 24 hours
 withdrawable = entire contract balance
@@ -241,6 +251,7 @@ partialWithdrawal = false // Reset
 ```
 
 **Partial Withdrawal Mode:**
+
 ```solidity
 // Orders within last 24 hours
 confirmedAmount = totalConfirmedAmount  // LOCKED!
@@ -253,6 +264,7 @@ partialWithdrawal = true                // Can't withdraw again
 **Key Protection:** Confirmed funds are **locked** during refund period, ensuring buyers can always refund.
 
 **Reverts:**
+
 - `UnauthorizedAccess()` - Not owner
 - `WaitUntilRefundPeriodPassed()` - Second partial withdrawal attempt
 - `TransferFailed()` - ETH transfer failed
@@ -262,6 +274,7 @@ partialWithdrawal = true                // Can't withdraw again
 Open the shop for purchases.
 
 **State Changes:**
+
 - Sets `shopClosed = false`
 - Emits `ShopOpen` event (only if was closed)
 
@@ -270,6 +283,7 @@ Open the shop for purchases.
 Close the shop to prevent new purchases.
 
 **State Changes:**
+
 - Sets `shopClosed = true`
 - Emits `ShopClosed` event
 
@@ -282,10 +296,12 @@ Close the shop to prevent new purchases.
 **Step 1 of 2**: Initiate ownership transfer.
 
 **Requirements:**
+
 - `newOwner` cannot be zero address
 - `newOwner` cannot be current owner
 
 **State Changes:**
+
 - Sets `pendingOwner = newOwner`
 - Emits `OwnershipTransferInitiated` event
 
@@ -294,10 +310,12 @@ Close the shop to prevent new purchases.
 **Step 2 of 2**: Accept pending ownership transfer.
 
 **Requirements:**
+
 - Caller must be `pendingOwner`
 - `pendingOwner` must not be zero address
 
 **State Changes:**
+
 - Sets `owner = pendingOwner`
 - Resets `pendingOwner = address(0)`
 - Emits `OwnershipTransferred` event
@@ -307,9 +325,11 @@ Close the shop to prevent new purchases.
 Cancel a pending ownership transfer.
 
 **Requirements:**
+
 - Must have pending transfer
 
 **State Changes:**
+
 - Resets `pendingOwner = address(0)`
 - Emits `OwnershipTransferInitiated(owner, address(0))`
 
@@ -354,11 +374,13 @@ error InvalidOrder();                    // Order doesn't exist   ⭐ NEW
 #### ✅ Fixed: TAX Included in Order Amounts
 
 **Before (Vulnerable):**
+
 ```solidity
 orders[orderId] = Order(..., PRICE, ...);  // Missing TAX!
 ```
 
 **After (Fixed):**
+
 ```solidity
 orders[orderId] = Order(..., expectedTotal, ...);  // Includes TAX ✅
 ```
@@ -368,11 +390,13 @@ orders[orderId] = Order(..., expectedTotal, ...);  // Includes TAX ✅
 #### ✅ Fixed: Refund Calculation Includes TAX
 
 **Before (Vulnerable):**
+
 ```solidity
 refundAmount = PRICE.getRefund(...);  // Only refunds based on PRICE
 ```
 
 **After (Fixed):**
+
 ```solidity
 refundAmount = order.amount.getRefund(...);  // Refunds include TAX ✅
 ```
@@ -382,12 +406,14 @@ refundAmount = order.amount.getRefund(...);  // Refunds include TAX ✅
 #### ✅ Fixed: Refund Period Protection
 
 **Before (Vulnerable):**
+
 ```solidity
 withdrawable = confirmedAmount;  // Owner could withdraw immediately!
 totalConfirmedAmount = 0;        // Reset on every withdrawal
 ```
 
 **After (Fixed):**
+
 ```solidity
 // During refund period: Confirmed funds LOCKED
 if (lastBuy + REFUND_POLICY >= now) {
@@ -401,6 +427,7 @@ if (lastBuy + REFUND_POLICY >= now) {
 #### ✅ Fixed: Direct ETH Transfer Blocking
 
 **Added:**
+
 ```solidity
 receive() external payable {
     revert("Direct transfers not allowed");
@@ -493,6 +520,7 @@ if (!success) revert TransferFailed();
 The system creates natural buyer protection through economics:
 
 **The "Popular Shop" Effect:**
+
 ```solidity
 // Every purchase updates lastBuy
 lastBuy = block.timestamp;
@@ -503,6 +531,7 @@ lastBuy = block.timestamp;
 ```
 
 **Result:**
+
 - Popular shop = maximum buyer safety
 - Owner must choose: Growth or Liquidity
 - Economics align with good behavior
