@@ -129,7 +129,12 @@ contract Shop {
         if (msg.value < expectedTotal) revert InsuffientAmount();
         if (msg.value > expectedTotal) revert ExcessAmount();
         uint256 nonce = nonces[msg.sender];
-        bytes32 orderId = keccak256(abi.encode(msg.sender, nonce));
+        bytes32 orderId;
+        assembly ("memory-safe") {
+            mstore(0x00, caller())
+            mstore(0x20, nonce)
+            orderId := keccak256(0x00, 0x40)
+        }
         nonces[msg.sender]++;
         orders[orderId] = Transaction.Order(msg.sender, nonce, expectedTotal, block.timestamp, false);
         lastBuy = block.timestamp;
