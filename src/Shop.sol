@@ -85,6 +85,7 @@ contract Shop {
     error TransferFailed();
     error OrderAlreadyConfirmed();
     error InvalidOrder();
+    error DirectTransferNotAllowed();
 
     constructor(
         uint256 price,
@@ -256,6 +257,6 @@ contract Shop {
     }
 
     receive() external payable {
-        revert("Direct transfers not allowed");
+        revert DirectTransferNotAllowed();
     }
 }
